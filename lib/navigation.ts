@@ -12,7 +12,6 @@ export const clientNav = [
 
 export const adminNav = [
   ["dashboard", "Admin Dashboard"],
-  ["clients", "Clients"],
   ["websites", "Websites"],
   ["security-events", "Security Events"],
   ["plans", "Plans & Billing"],
