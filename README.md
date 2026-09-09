@@ -1,293 +1,91 @@
-# WebShield V1
-
-**Monitor. Detect. Protect.**
-
-WebShield is a website protection and visitor security platform by **Savrdh Technologies**. The V1 repository provides a scalable SaaS application foundation for website monitoring, visitor visibility, threat investigation, firewall policy management, analytics, alerts, reporting, API integrations, billing, team access, administration and security-provider integration.
-
-> **Important:** V1 does **not** claim to be a live WAF, DDoS mitigation network, IP reputation service or bot-management network. The default deployment uses a clearly labelled **DEMO MODE** provider. Real enforcement only exists after a production edge/WAF provider is connected.
-
-## Product
-
-- Product: WebShield
-- Company: Savrdh Technologies
-- Founder: Shailendra Choudhary
-- Tagline: Monitor. Detect. Protect.
-- Company website: https://www.savrdhtechnology.com
-
-## Technology
-
-- Next.js 16.3.4 App Router
-- React 19.2.8
-- TypeScript
-- Supabase Auth + PostgreSQL integration foundation
-- Supabase SSR cookie sessions
-- Server Components and Route Handlers
-- Vercel-compatible deployment
-- Custom lightweight CSS/SVG charts (no heavy chart/UI dependency)
-
-## Application areas
-
-### Public website
-
-`/`, `/product`, `/features`, `/how-it-works`, `/pricing`, `/security`, `/documentation`, `/contact`, `/login`, `/register`, `/forgot-password`, `/reset-password`
-
-### Client application
-
-`/app/dashboard`, `/app/live-visitors`, `/app/visitor-history`, `/app/threat-center`, `/app/firewall`, `/app/websites`, `/app/analytics`, `/app/reports`, `/app/alerts`, `/app/api-integrations`, `/app/billing`, `/app/team`, `/app/settings`, `/app/support`
-
-### Admin application
-
-`/admin/dashboard`, `/admin/clients`, `/admin/websites`, `/admin/security-events`, `/admin/threat-events`, `/admin/users`, `/admin/plans`, `/admin/subscriptions`, `/admin/system-logs`, `/admin/support-tickets`, `/admin/system-settings`
-
-## Architecture
-
-```text
-Public / Auth UI
-       |
-       v
-Server-side session + RBAC
-       |
-       +----------------------+----------------------+
-       |                      |                      |
-       v                      v                      v
-Client routes             API routes             Admin routes
-       |                      |                      |
-       +----------------------+----------------------+
-                              |
-                              v
-                    Provider / Service boundary
-                              |
-       +----------------------+----------------------+
-       |                      |                      |
-       v                      v                      v
-Demo telemetry       Supabase/Postgres       Security providers
-(default V1)         (integration-ready)      (integration-ready)
-```
-
-## Security engine
-
-The provider-neutral security engine lives in `lib/security-engine/index.ts`.
-
-```text
-Incoming Request
-      ↓
-Request Collector
-      ↓
-Normalizer
-      ↓
-Threat Detection Engine
-      ↓
-Risk Scoring
-      ↓
-Security Rules
-      ↓
-Decision Engine
-      ↓
-ALLOW / BLOCK / CHALLENGE / RATE_LIMIT
-      ↓
-Event Processor
-      ↓
-Dashboard / Alerts / Analytics
-```
-
-Interfaces are provided for IP reputation, bot detection, request analysis, rate limiting, custom rules and event processing. `DemoSignalProvider` is intentionally non-enforcing.
-
-## Authentication and RBAC
-
-Production auth is designed for Supabase Auth using cookie-based SSR sessions. Protected pages validate server-side claims; authorization roles are read from trusted `app_metadata`, not user-editable profile metadata.
-
-Roles:
-
-- `OWNER`
-- `ADMIN`
-- `SECURITY_ANALYST`
-- `MEMBER`
-- `VIEWER`
-
-`/admin/*` requires `OWNER` or `ADMIN` in the current V1 route guard. More granular admin permissions can be added without changing the overall tenant model.
-
-When Supabase is not configured and `WEB_SHIELD_DEMO_MODE=true`, a demo-only signed cookie enables UI exploration. This session must not be treated as production authentication.
-
-## Database
-
-The initial schema is in:
-
-`supabase/migrations/0001_webshield_v1.sql`
-
-It includes:
-
-- organizations
-- profiles
-- team_members
-- websites
-- visitors
-- visitor_sessions
-- threat_events
-- security_events
-- firewall_rules
-- ip_rules
-- country_rules
-- alerts
-- notifications
-- api_keys
-- webhooks
-- plans
-- subscriptions
-- invoices
-- audit_logs
-- support_tickets
-
-All public application tables have RLS enabled. Organization access is tenant-scoped through `team_members`. Secret hashes for API keys/webhooks are separated into the non-exposed `private` schema.
-
-Do **not** apply this migration blindly to an existing database. Review it against the dedicated production project first, run Supabase security/performance advisors, then apply through the normal migration workflow.
-
-## Demo mode
-
-Set:
-
-```env
-WEB_SHIELD_DEMO_MODE=true
-```
-
-Demo mode supplies simulated visitors, threats, metrics, analytics, alerts and firewall configuration from `lib/demo.ts`. Every main application page displays **DEMO MODE**. Demo API responses also include `meta.demo=true`.
-
-When demo mode is disabled without a production provider, protected data API routes return `501 PROVIDER_NOT_CONNECTED` instead of inventing live data.
-
-## API boundary
-
-Current normalized endpoints are represented beneath `/api/*`:
-
-- `/api/dashboard`
-- `/api/websites`
-- `/api/visitors`
-- `/api/threats`
-- `/api/firewall`
-- `/api/analytics`
-- `/api/reports`
-- `/api/alerts`
-- `/api/api-keys`
-- `/api/webhooks`
-- `/api/billing`
-- `/api/admin`
-- `/api/support`
-
-Authenticated `GET` requests return demo provider data while demo mode is enabled. Write operations intentionally return `501 INTEGRATION_READY` until a real database/provider command layer is configured, preventing fake state mutation.
-
-## Local development
-
-1. Copy the example environment file:
-
-```bash
-cp .env.example .env.local
-```
-
-2. Install exact dependencies:
-
-```bash
-npm install
-```
-
-3. Run checks:
-
-```bash
-npm run lint
-npm run typecheck
-npm test
-npm run build
-```
-
-4. Start development:
-
-```bash
-npm run dev
-```
-
-Open `http://localhost:3000`.
-
-### Demo sign-in
-
-When production Supabase variables are absent and demo mode is enabled, the login UI accepts a valid-looking email plus an 8+ character password for demo exploration. Emails beginning with `admin@` can preview the demo admin shell. These are **not** real production accounts or credentials.
-
-## Environment variables
-
-See `.env.example`.
-
-| Variable | Scope | Purpose |
-|---|---|---|
-| `NEXT_PUBLIC_APP_URL` | public | canonical application URL |
-| `WEB_SHIELD_DEMO_MODE` | server | enable/disable demo provider |
-| `NEXT_PUBLIC_SUPABASE_URL` | public | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | public | Supabase publishable key |
-| `AUTH_SECRET` | server | server session signing / internal auth secret |
-| `API_SECRET` | server | reserved for trusted internal API authentication |
-| `WEBHOOK_SECRET` | server | reserved for webhook signing |
-
-Never expose a Supabase secret/service-role key with a `NEXT_PUBLIC_` prefix. Never commit production credentials.
-
-## Security controls included in V1
-
-- Server-side protected client/admin layouts
-- Role-based authorization guard
-- Supabase `getClaims()` production validation path
-- Cookie-based SSR auth integration
-- RLS-ready tenant schema
-- Secret material separated from public schema
-- Secure response headers
-- API content-type/body validation
-- Consistent API response envelope
-- Audit log entity model
-- Explicit demo/production provider boundary
-- Masked API key UI
-- No real secret committed to the repository
-- `robots.txt` blocks application/admin/API crawling
-
-## Integration-ready, not falsely implemented
-
-The following require real infrastructure before they can be described as production functionality:
-
-- DDoS mitigation
-- Edge WAF enforcement
-- IP reputation provider
-- Bot challenge provider
-- distributed rate limiting
-- real-time collector / streaming telemetry
-- email notification delivery
-- webhook delivery/signing worker
-- PDF report generation
-- payment gateway / invoices
-- production API key issuance/revocation command layer
-
-## Vercel deployment
-
-Recommended project name: `webshield`
-
-1. Create a **new** Vercel project linked only to `savrdhtechnology-cloud/WebShiled`.
-2. Use the detected Next.js framework defaults.
-3. Configure environment variables in Vercel, never in source control.
-4. For the initial demo deployment set `WEB_SHIELD_DEMO_MODE=true`.
-5. Set `NEXT_PUBLIC_APP_URL` to the final production domain after the first deployment.
-6. When Supabase is ready, add its project URL and publishable key, configure allowed auth redirect URLs, apply/review the migration, then disable demo mode only after production telemetry providers are connected.
-
-## Production checklist
-
-- [ ] Dedicated Supabase project selected
-- [ ] Migration reviewed before application
-- [ ] Supabase security advisor clean
-- [ ] Supabase performance advisor reviewed
-- [ ] Auth email and recovery redirect URLs configured
-- [ ] `AUTH_SECRET` generated securely
-- [ ] Production security provider connected
-- [ ] Provider enforcement tested before using `PROTECTED` status
-- [ ] Real-time collector authenticated and rate-limited
-- [ ] Audit events emitted for sensitive writes
-- [ ] API keys stored hashed; raw keys displayed once only
-- [ ] Webhook secrets stored server-side only
-- [ ] Payment provider configured before enabling paid checkout
-- [ ] PDF provider configured before enabling PDF download
-- [ ] Lint, typecheck, tests and production build passing
-- [ ] Mobile/tablet/desktop smoke tests complete
-- [ ] Runtime logs reviewed after deployment
-
-## Repository safety
-
-This repository started empty. WebShield V1 is the initial application foundation; no prior application code or database schema was deleted or overwritten.
+import Link from "next/link";
+import { BarChart, Donut } from "@/components/charts";
+import { Icon } from "@/components/icons";
+import { demoAlerts, demoThreats, demoVisitors, demoWebsites } from "@/lib/demo";
+
+function Header({ title, text, action }: { title: string; text: string; action?: string }) {
+  return <div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> {title}</div><h1>{title}</h1><p>{text}</p></div><div className="headerActions"><span className="demoBadge large">DEMO MODE</span>{action&&<button className="btn small"><Icon name="plus"/>{action}</button>}</div></div>;
+}
+function Tag({ children, tone="safe" }: { children: React.ReactNode; tone?: string }) { return <span className={`statusTag ${tone}`}>{children}</span>; }
+
+function Visitors({ history=false }: { history?: boolean }) {
+  return <><Header title={history?"Visitor History":"Live Visitors"} text={history?"Search and investigate past visitor sessions across connected websites.":"Real-time style visitor activity. This V1 feed is generated by the demo telemetry provider."}/><div className="toolbar"><div className="searchBox"><Icon name="search"/><input aria-label="Search visitors" placeholder="Search IP, visitor ID, URL…"/></div>{["Country","Risk","Device","Status"].map(x=><button className="filterBtn" key={x}>{x}⌄</button>)}<span className="liveIndicator"><i/> {history?"History dataset":"Demo feed active"}</span></div><article className="panel tablePanel"><div className="tableScroll"><table><thead><tr><th>Visitor</th><th>IP Address</th><th>Location</th><th>Device</th><th>Browser / OS</th><th>Request</th><th>Risk</th><th>Status</th><th>Time</th></tr></thead><tbody>{demoVisitors.map(v=><tr key={v.id}><td><b>{v.id}</b></td><td className="mono">{v.ip}</td><td>{v.city}<small>{v.country}</small></td><td>{v.device}</td><td>{v.browser}<small>{v.os}</small></td><td className="mono"><b>{v.method}</b> {v.url}</td><td><span className="riskScore">{v.riskScore}</span></td><td><Tag tone={v.status.toLowerCase()}>{v.status}</Tag></td><td>{v.timestamp}</td></tr>)}</tbody></table></div></article><div className="dashboardGrid equal"><article className="panel"><div className="panelHead"><div><h3>Visitor details</h3><p>Selecting a visitor will populate this investigation panel when live data services are connected.</p></div></div><div className="detailGrid">{[["Visitor ID","VIS-88420"],["IP","45.83.64.17"],["Referrer","Direct"],["Requested URL","/wp-login.php"],["Risk score","91 / 100"],["Decision","BLOCKED"]].map(([a,b])=><div key={a}><span>{a}</span><b>{b}</b></div>)}</div></article><article className="panel"><div className="panelHead"><div><h3>Session risk signals</h3><p>Explainable demo scoring signals</p></div></div>{["Known automation pattern","Repeated authentication requests","Unusual request frequency"].map((x,i)=><div className="signalRow" key={x}><span>{i+1}</span><b>{x}</b><Tag tone={i===0?"critical":"medium"}>{i===0?"+42":"+18"}</Tag></div>)}</article></div></>;
+}
+
+function ThreatCenter() {
+  return <><Header title="Threat Center" text="Investigate normalized threat events, severity, risk scores and actions."/><div className="metricGrid compact">{[["Open threats","18"],["Critical","4"],["High severity","23"],["Blocked today","1,284"]].map(([a,b],i)=><article className="metricCard" key={a}><span>{a}</span><strong>{b}</strong><small className={i===1?"danger":"muted"}>Demo telemetry</small></article>)}</div><article className="panel tablePanel"><div className="panelHead"><div><h3>Threat events</h3><p>Actions modify demo state only in V1.</p></div><div className="headerActions"><button className="filterBtn">Severity⌄</button><button className="filterBtn">Type⌄</button></div></div><div className="tableScroll"><table><thead><tr><th>Threat</th><th>Type</th><th>Severity</th><th>Source IP</th><th>Target</th><th>Risk</th><th>Status</th><th>Action taken</th><th>Actions</th></tr></thead><tbody>{demoThreats.map(t=><tr key={t.id}><td><b>{t.id}</b><small>{t.timestamp}</small></td><td>{t.type}</td><td><Tag tone={t.severity.toLowerCase()}>{t.severity}</Tag></td><td className="mono">{t.sourceIp}</td><td className="mono">{t.targetUrl}</td><td><span className="riskScore">{t.riskScore}</span></td><td>{t.status}</td><td><Tag tone="blocked">{t.action}</Tag></td><td><button className="rowAction">View details</button></td></tr>)}</tbody></table></div></article></>;
+}
+
+function Firewall() {
+  return <><Header title="Firewall" text="Define security policy through modular rules. V1 rules are configuration-only until an enforcement provider is connected." action="Create Rule"/><div className="metricGrid compact">{[["Active rules","18"],["IP rules","7"],["Country rules","3"],["Rate limits","5"]].map(([a,b])=><article className="metricCard" key={a}><span>{a}</span><strong>{b}</strong><small className="muted">Demo configuration</small></article>)}</div><div className="dashboardGrid twoThirds"><article className="panel"><div className="panelHead"><div><h3>Rule builder</h3><p>Human-readable policy configuration</p></div><Tag tone="medium">INTEGRATION READY</Tag></div><div className="ruleBuilder"><div className="ruleWord">IF</div><div className="ruleField"><small>Field</small><b>Country⌄</b></div><div className="ruleField"><small>Operator</small><b>equals⌄</b></div><div className="ruleField grow"><small>Value</small><b>Selected country</b></div><div className="ruleJoin">AND</div><div className="ruleField"><small>Field</small><b>Risk Score⌄</b></div><div className="ruleField"><small>Operator</small><b>greater than⌄</b></div><div className="ruleField grow"><small>Value</small><b>80</b></div><div className="ruleThen">THEN</div><div className="ruleAction">BLOCK</div></div><div className="buttonRow"><button className="btn small">Save demo rule</button><button className="ghostBtn small">Test rule</button></div></article><article className="panel"><div className="panelHead"><div><h3>Decision actions</h3><p>Provider-neutral interface</p></div></div>{[["ALLOW","Pass request"],["BLOCK","Reject request"],["CHALLENGE","Request verification"],["RATE_LIMIT","Throttle request"]].map(([a,b])=><div className="decisionRow" key={a}><Tag tone={a.toLowerCase()}>{a}</Tag><span>{b}</span></div>)}</article></div><article className="panel tablePanel"><div className="panelHead"><div><h3>Firewall rules</h3><p>Priority-ordered demo rules</p></div></div><div className="tableScroll"><table><thead><tr><th>Priority</th><th>Name</th><th>Condition</th><th>Action</th><th>Status</th><th>Matches</th></tr></thead><tbody>{[["10","Block high-risk requests","Risk score > 90","BLOCK","Active","428"],["20","Challenge automation","Device = Bot AND Risk > 60","CHALLENGE","Active","1,284"],["30","Login rate limit","Path = /login AND Rate > 20/min","RATE_LIMIT","Active","293"],["40","Allow verified monitors","IP in allowlist","ALLOW","Active","12K"]].map(r=><tr key={r[0]}>{r.map((c,i)=><td key={i}>{i===3?<Tag tone={c.toLowerCase()}>{c}</Tag>:i===4?<Tag>{c}</Tag>:c}</td>)}</tr>)}</tbody></table></div></article></>;
+}
+
+function Websites() {
+  return <><Header title="Websites" text="Connect, verify and manage multiple websites from one WebShield organization." action="Add Website"/><div className="websiteGrid">{demoWebsites.map((w,i)=><article className="websiteCard" key={w.domain}><div className="siteIcon"><Icon name="globe"/></div><div className="siteMain"><div className="siteTitle"><h3>{w.domain}</h3><Tag tone={w.status==="PROTECTED"?"safe":w.status==="PENDING"?"medium":"allow"}>{w.status}</Tag></div><p>SSL: {w.ssl} · Risk: {w.risk}</p><div className="integrationLine"><span>Integration</span><b>{w.integration}</b></div><div className="siteActions"><button className="ghostBtn small">Manage</button><button className="textButton">View analytics</button></div></div>{i===0&&<span className="protectedRing"><Icon name="shield"/></span>}</article>)}</div><article className="panel"><div className="panelHead"><div><h3>Integration setup flow</h3><p>A controlled onboarding path prevents a website from being marked protected before verification and enforcement are actually connected.</p></div></div><div className="steps">{[["1","Enter domain","Collect the website hostname"],["2","Generate token","Create verification token"],["3","Verify domain","Confirm site ownership"],["4","Install integration","Connect collector / edge provider"],["5","Activate protection","Only after real enforcement exists"]].map(([n,a,b],i)=><div className={`step ${i===0?"current":""}`} key={n}><span>{n}</span><b>{a}<small>{b}</small></b></div>)}</div></article></>;
+}
+
+function Analytics() {
+  return <><Header title="Analytics" text="Explore visitor and security trends across selected date ranges."/><div className="rangeTabs">{["Today","Yesterday","7 Days","30 Days","90 Days","Custom"].map((x,i)=><button className={i===2?"active":""} key={x}>{x}</button>)}</div><div className="dashboardGrid equal"><article className="panel"><div className="panelHead"><div><h3>Visitor Analytics</h3><p>Traffic mix by source</p></div></div><BarChart data={[["Organic",42],["Direct",31],["Referral",17],["Social",8],["Other",2]]}/></article><article className="panel"><div className="panelHead"><div><h3>Security Analytics</h3><p>Severity distribution</p></div></div><div className="donutRow"><Donut value={72} label="Safe traffic"/><div className="scoreLegend"><span><i className="critical"/>Critical <b>2%</b></span><span><i className="high"/>High <b>8%</b></span><span><i className="medium"/>Medium <b>18%</b></span><span><i className="low"/>Low <b>72%</b></span></div></div></article></div><div className="dashboardGrid equal"><article className="panel"><div className="panelHead"><div><h3>Devices</h3><p>Visitor device distribution</p></div></div><BarChart data={[["Desktop",56],["Mobile",38],["Tablet",4],["Bots",2]]}/></article><article className="panel"><div className="panelHead"><div><h3>Browsers</h3><p>Observed user agents</p></div></div><BarChart data={[["Chrome",61],["Safari",21],["Edge",10],["Firefox",6],["Other",2]]}/></article></div></>;
+}
+
+function Reports() {
+  const reports=[["Daily Security Report","Security","Today","Ready"],["Weekly Security Report","Security","Sep 7","Ready"],["Monthly Security Report","Security","Sep 1","Ready"],["Visitor Report","Traffic","Sep 1","Ready"],["Threat Report","Security","Sep 1","Ready"],["Firewall Report","Policy","Sep 1","Ready"]];
+  return <><Header title="Reports" text="Generate operational security and visitor reports. PDF generation is integration-ready in V1." action="Create Report"/><article className="panel tablePanel"><div className="tableScroll"><table><thead><tr><th>Report</th><th>Category</th><th>Period</th><th>Status</th><th>Actions</th></tr></thead><tbody>{reports.map(r=><tr key={r[0]}><td><b>{r[0]}</b></td><td>{r[1]}</td><td>{r[2]}</td><td><Tag>{r[3]}</Tag></td><td><div className="rowButtons"><button>View</button><button disabled title="PDF integration pending">PDF</button><button>CSV</button></div></td></tr>)}</tbody></table></div></article><div className="integrationNotice"><Icon name="shield"/><div><b>Report export boundary</b><p>CSV export can be wired to normalized event data. PDF generation is intentionally marked integration-ready rather than simulated as a completed production exporter.</p></div></div></>;
+}
+
+function Alerts() {
+  return <><Header title="Alerts" text="Prioritize security and availability events across dashboard, email and webhook channels."/><div className="dashboardGrid twoThirds"><article className="panel"><div className="panelHead"><div><h3>Recent alerts</h3><p>Demo notification stream</p></div></div>{demoAlerts.map(([a,b,c,d])=><div className="eventRow" key={a}><span className={`alertIcon ${d.toLowerCase()}`}><Icon name="bell"/></span><div><b>{a}</b><small>{b}</small></div><span className="eventTime">{c}</span></div>)}</article><article className="panel"><div className="panelHead"><div><h3>Notification channels</h3><p>Delivery preferences</p></div></div>{[["Dashboard","Enabled"],["Email","Integration ready"],["Webhook","Integration ready"]].map(([a,b],i)=><div className="toggleRow" key={a}><span><b>{a}</b><small>{b}</small></span><i className={i===0?"toggle on":"toggle"}/></div>)}</article></div><article className="panel"><div className="panelHead"><div><h3>Alert rules</h3><p>Choose which events trigger notification workflows</p></div></div><div className="settingsGrid">{["Critical Threat","High Risk IP","Brute Force Spike","Suspicious Bot Activity","Traffic Spike","Website Down","SSL Issue"].map(x=><label className="checkCard" key={x}><input type="checkbox" defaultChecked/><span><b>{x}</b><small>Dashboard notification enabled</small></span></label>)}</div></article></>;
+}
+
+function ApiIntegrations() {
+  return <><Header title="API & Integrations" text="Manage scoped API keys, webhook endpoints and developer access without exposing secrets in frontend code." action="Create Key"/><div className="dashboardGrid equal"><article className="panel"><div className="panelHead"><div><h3>API Keys</h3><p>Only prefixes are shown after creation</p></div></div>{[["Production collector","wsk_live_••••••••••9f2a","Last used: never"],["Analytics integration","wsk_live_••••••••••1c84","Last used: demo only"]].map(([a,b,c])=><div className="apiKeyRow" key={a}><span className="keyIcon"><Icon name="key"/></span><div><b>{a}</b><code>{b}</code><small>{c}</small></div><button className="dangerButton">Revoke</button></div>)}</article><article className="panel"><div className="panelHead"><div><h3>Webhooks</h3><p>Signed event delivery architecture</p></div></div><div className="emptyMini"><Icon name="globe" size={28}/><b>No production webhooks configured</b><p>Add an HTTPS endpoint after setting WEBHOOK_SECRET securely on the server.</p><button className="ghostBtn small">Add endpoint</button></div></article></div><article className="panel"><div className="panelHead"><div><h3>API documentation</h3><p>Versioned REST service boundaries</p></div></div><div className="endpointGrid">{["/api/dashboard","/api/websites","/api/visitors","/api/threats","/api/firewall","/api/analytics","/api/reports","/api/alerts","/api/api-keys","/api/webhooks","/api/billing","/api/support"].map(x=><code key={x}>GET {x}</code>)}</div></article></>;
+}
+
+function Billing() {
+  return <><Header title="Billing" text="Subscription foundation for WebShield plans. No fake payment processing is performed."/><div className="billingHero"><div><span>CURRENT PLAN</span><h2>FREE</h2><p>1 website · 10K monthly visitors · 7-day retention</p></div><button className="btn">View upgrade options</button></div><div className="pricingGrid appPricing">{[["FREE","Current","1 website"],["STARTER","Coming soon","3 websites"],["BUSINESS","Coming soon","10 websites"],["ENTERPRISE","Contact us","Custom"]].map((p,i)=><article className={i===0?"priceCard current":"priceCard"} key={p[0]}><h3>{p[0]}</h3><strong>{p[1]}</strong><p>{p[2]}</p><button className="ghostBtn small" disabled={i!==0}>{i===0?"Current plan":"Payment integration ready"}</button></article>)}</div><article className="panel"><div className="panelHead"><div><h3>Billing history</h3><p>No production payment provider configured.</p></div></div><div className="emptyMini"><Icon name="chart"/><b>No invoices yet</b><p>Invoices will appear here after a real payment provider is connected.</p></div></article></>;
+}
+
+function Team() { return <><Header title="Team" text="Manage organization members and role-based access." action="Invite Member"/><article className="panel tablePanel"><div className="tableScroll"><table><thead><tr><th>Member</th><th>Role</th><th>Scope</th><th>Status</th><th>Last active</th></tr></thead><tbody>{[["Demo Owner","owner@demo.webshield.local","OWNER","All websites","Active","Now"],["Security Analyst","analyst@example.com","SECURITY_ANALYST","All websites","Demo","2h ago"],["Operations Viewer","viewer@example.com","VIEWER","savrdhtechnology.com","Demo","1d ago"]].map(r=><tr key={r[1]}><td><b>{r[0]}</b><small>{r[1]}</small></td><td><Tag tone="allow">{r[2]}</Tag></td><td>{r[3]}</td><td><Tag>{r[4]}</Tag></td><td>{r[5]}</td></tr>)}</tbody></table></div></article><div className="integrationNotice"><Icon name="lock"/><div><b>RBAC foundation</b><p>Production authorization reads role and organization identifiers from trusted server-validated app metadata, not user-editable profile metadata.</p></div></div></>;
+}
+
+function Settings({ support=false }: { support?: boolean }) {
+  if (support) return <><Header title="Support" text="Open and track support requests for WebShield operations." action="New Ticket"/><div className="dashboardGrid equal"><article className="panel"><div className="panelHead"><div><h3>Support tickets</h3><p>Demo queue</p></div></div>{[["#WS-1042","Website verification help","OPEN"],["#WS-1038","Webhook setup question","PENDING"],["#WS-1021","Analytics export","RESOLVED"]].map(([a,b,c])=><div className="eventRow" key={a}><span className="ticketNo">{a}</span><div><b>{b}</b><small>Updated recently</small></div><Tag tone={c==="RESOLVED"?"safe":"medium"}>{c}</Tag></div>)}</article><article className="panel"><div className="panelHead"><div><h3>Documentation</h3><p>Product and integration guidance</p></div></div>{["Getting started","Website verification","Security engine architecture","API authentication","Firewall provider integration"].map(x=><div className="docLink" key={x}><Icon name="shield"/><span>{x}</span><Icon name="chevron" size={14}/></div>)}</article></div></>;
+  return <><Header title="Settings" text="Configure organization, security and notification preferences."/><div className="settingsTabs"><button className="active">Organization</button><button>Security</button><button>Notifications</button><button>Data retention</button></div><article className="panel settingsPanel"><div className="panelHead"><div><h3>Organization profile</h3><p>Workspace metadata</p></div></div><div className="formGrid"><label>Organization name<input defaultValue="Savrdh Technologies"/></label><label>Workspace slug<input defaultValue="savrdh-technologies"/></label><label>Timezone<select defaultValue="Asia/Kolkata"><option>Asia/Kolkata</option><option>UTC</option></select></label><label>Default retention<select defaultValue="7 days"><option>7 days</option><option>30 days</option><option>90 days</option></select></label></div><div className="buttonRow"><button className="btn small">Save changes</button></div></article><article className="panel"><div className="panelHead"><div><h3>Security defaults</h3><p>Safe configuration boundaries</p></div></div><div className="settingsGrid">{[["Require verified websites","Prevent protection status before verification"],["Audit sensitive actions","Record actor, resource, IP, timestamp and result"],["Mask secret keys","Never return full secret values after creation"],["Demo telemetry label","Always label simulated data"]].map(([a,b])=><div className="toggleRow" key={a}><span><b>{a}</b><small>{b}</small></span><i className="toggle on"/></div>)}</div></article></>;
+}
+
+function GenericAdmin({ slug }: { slug: string }) {
+  const title = slug.split("-").map(x=>x[0]?.toUpperCase()+x.slice(1)).join(" ");
+  const rows: Record<string,string[][]> = {
+    clients: [["Savrdh Technologies","3 sites","BUSINESS","Active"],["Northstar Retail","8 sites","STARTER","Active"],["Acme Labs","2 sites","FREE","Trial"]],
+    websites: [["savrdhtechnology.com","Savrdh Technologies","PROTECTED","Low"],["portal.example.in","Savrdh Technologies","PENDING","—"],["store.northstar.example","Northstar Retail","CONNECTED","Medium"]],
+    users: [["Demo Owner","owner@demo.webshield.local","OWNER","Active"],["Security Analyst","analyst@example.com","SECURITY_ANALYST","Demo"],["Platform Admin","admin@demo.webshield.local","ADMIN","Demo"]],
+    plans: [["FREE","1 site","10K visitors","Active"],["STARTER","3 sites","100K visitors","Draft"],["BUSINESS","10 sites","Custom limits","Draft"],["ENTERPRISE","Custom","Custom","Draft"]],
+    subscriptions: [["Savrdh Technologies","FREE","Active","₹0"],["Northstar Retail","STARTER","Demo","—"],["Acme Labs","FREE","Trial","₹0"]],
+    "support-tickets": [["#WS-1042","Website verification help","OPEN","High"],["#WS-1038","Webhook setup question","PENDING","Medium"],["#WS-1021","Analytics export","RESOLVED","Low"]],
+    "system-logs": [["AUD-88341","USER_LOGIN","demo-owner","SUCCESS"],["AUD-88340","FIREWALL_RULE_VIEW","demo-owner","SUCCESS"],["AUD-88339","ADMIN_DASHBOARD_VIEW","demo-admin","SUCCESS"]]
+  };
+  const data=rows[slug]||[["EVT-2048","Security event","CRITICAL","Reviewed"],["EVT-2047","Threat event","HIGH","Open"],["EVT-2046","Policy event","MEDIUM","Observed"]];
+  return <><Header title={title} text={`Administrative ${title.toLowerCase()} management. Demo data only.`} action={slug==="plans"?"Create Plan":undefined}/><article className="panel tablePanel"><div className="tableScroll"><table><thead><tr>{["Record","Context","Status / Role","State"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{data.map((r,i)=><tr key={i}>{r.map((c,j)=><td key={j}>{j===0?<b>{c}</b>:j>=2?<Tag tone={c==="CRITICAL"?"critical":c==="HIGH"?"high":"safe"}>{c}</Tag>:c}</td>)}</tr>)}</tbody></table></div></article></>;
+}
+
+export function ClientModule({ slug }: { slug: string }) {
+  if (slug === "live-visitors") return <Visitors/>;
+  if (slug === "visitor-history") return <Visitors history/>;
+  if (slug === "threat-center") return <ThreatCenter/>;
+  if (slug === "firewall") return <Firewall/>;
+  if (slug === "websites") return <Websites/>;
+  if (slug === "analytics") return <Analytics/>;
+  if (slug === "reports") return <Reports/>;
+  if (slug === "alerts") return <Alerts/>;
+  if (slug === "api-integrations") return <ApiIntegrations/>;
+  if (slug === "billing") return <Billing/>;
+  if (slug === "team") return <Team/>;
+  if (slug === "settings") return <Settings/>;
+  if (slug === "support") return <Settings support/>;
+  return <div className="pageWrap"><Header title="Module" text="This route is not part of the WebShield V1 navigation."/><Link className="btn" href="/app/dashboard">Return to dashboard</Link></div>;
+}
+
+export function AdminModule({ slug }: { slug: string }) {
+  if (slug === "system-settings") return <div className="pageWrap"><Settings/></div>;
+  return <div className="pageWrap"><GenericAdmin slug={slug}/></div>;
+}
