@@ -66,21 +66,25 @@ function parseDemo(value?: string): AppUser | null {
 
 export async function getCurrentUser(): Promise<AppUser | null> {
   const supabase = await createClient();
-  if (supabase) {
-    const { data, error } = await supabase.auth.getClaims();
-    if (!error && data?.claims?.sub) {
-      const claims = data.claims as Record<string, unknown>;
-      const appMetadata = (claims.app_metadata || {}) as Record<string, unknown>;
-      const role = String(appMetadata.role || "VIEWER") as Role;
-      return {
-        id: String(claims.sub),
-        email: String(claims.email || ""),
-        name: String(appMetadata.name || claims.email || "WebShield User"),
-        role,
-        organizationId: String(appMetadata.organization_id || "unassigned"),
-        demo: false
-      };
-    }
+  const { data, error } = await supabase.auth.getClaims();
+  if (!error && data?.claims?.sub) {
+    const claims = data.claims as Record<string, unknown>;
+    const id = String(claims.sub);
+    const email = String(claims.email || "");
+
+    const [{ data: membership }, { data: profile }] = await Promise.all([
+      supabase.from("team_members").select("organization_id,role").eq("user_id", id).limit(1).maybeSingle(),
+      supabase.from("users").select("full_name").eq("id", id).maybeSingle()
+    ]);
+
+    return {
+      id,
+      email,
+      name: String(profile?.full_name || email || "WebShield User"),
+      role: String(membership?.role || "VIEWER") as Role,
+      organizationId: String(membership?.organization_id || "unassigned"),
+      demo: false
+    };
   }
 
   const store = await cookies();
@@ -104,5 +108,5 @@ export async function clearSession() {
   const store = await cookies();
   store.delete(DEMO_COOKIE);
   const supabase = await createClient();
-  if (supabase) await supabase.auth.signOut();
+  await supabase.auth.signOut();
 }
