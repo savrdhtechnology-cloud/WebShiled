@@ -73,7 +73,12 @@ export function WebsiteScanner() {
       });
       const data = await response.json();
       if (!response.ok || !data?.ok) throw new Error(data?.error || "Scan failed.");
-      setScan(data.scan);
+      const result = data.scan as ScanResult;
+      setScan(result);
+      try {
+        window.localStorage.setItem("webshield:last-scan", JSON.stringify(result));
+        window.dispatchEvent(new Event("webshield:scan-updated"));
+      } catch { /* local storage can be disabled */ }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Scan failed.");
     } finally {
