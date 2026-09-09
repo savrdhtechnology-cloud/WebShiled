@@ -1,0 +1,2 @@
+import type { MetadataRoute } from "next";
+export default function sitemap(): MetadataRoute.Sitemap { const base=process.env.NEXT_PUBLIC_APP_URL || "https://webshield.vercel.app"; const paths=["","/product","/features","/how-it-works","/pricing","/security","/documentation","/contact","/login","/register"]; return paths.map(path=>({ url:`${base}${path}`, lastModified:new Date(), changeFrequency:path?"monthly":"weekly", priority:path?0.7:1 })); }
