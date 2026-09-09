@@ -1,15 +1,20 @@
 import Link from "next/link";
 import { BackendResource } from "@/components/backend-resource";
+import { LiveTrafficIntelligencePage, PreIntegrationIntelligence } from "@/components/pre-integration-intelligence";
 
 function SettingsPage({admin=false}:{admin?:boolean}){
   return <div className="pageWrap"><div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> Settings</div><h1>Settings</h1><p>Workspace and protection settings for {admin?"administration":"your organization"}.</p></div><span className="statusTag safe">BACKEND READY</span></div><article className="panel"><div className="panelHead"><div><h3>Security defaults</h3><p>Only verified websites should be eligible for connected protection. Database access is tenant-isolated with RLS.</p></div></div><div className="settingsGrid">{["Require website verification before protection","Store firewall rules in backend","Use role-based access control","Do not display fake telemetry"].map(x=><div className="toggleRow" key={x}><b>{x}</b><i className="toggle on"/></div>)}</div></article></div>;
 }
 
+function ThreatPage(){
+  return <div className="pageWrap"><div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> Threat Center</div><h1>Threat Center</h1><p>Pre-integration scan findings are shown first. Real attack events appear below only after traffic/log integration.</p></div><span className="statusTag medium">SCAN + CONNECTED EVENTS</span></div><PreIntegrationIntelligence compact/><div style={{marginTop:16}}><BackendResource resource="threats" title="Connected Threat Events" description="Real threat detections stored in WebShield threat_events after a traffic collector/provider is connected."/></div></div>;
+}
+
 export function ClientModule({slug}:{slug:string}){
-  if(slug==="live-visitors") return <BackendResource resource="visitors" title="Live Visitors" description="Visitor records from the WebShield backend. Real-time values appear after a traffic collector/provider is connected."/>;
-  if(slug==="threat-center") return <BackendResource resource="threats" title="Threat Center" description="Threat detections stored in WebShield threat_events."/>;
+  if(slug==="live-visitors") return <LiveTrafficIntelligencePage/>;
+  if(slug==="threat-center") return <ThreatPage/>;
   if(slug==="firewall") return <BackendResource resource="firewall" title="Firewall" description="Database-backed firewall policy. Provider enforcement is shown only when a real provider rule is connected." allowFirewallCreate/>;
-  if(slug==="analytics") return <BackendResource resource="analytics" title="Analytics" description="Backend-derived visitor, session, threat and blocked-request totals."/>;
+  if(slug==="analytics") return <BackendResource resource="analytics" title="Analytics" description="Backend-derived visitor, session, threat and blocked-request totals after traffic integration."/>;
   if(slug==="reports") return <BackendResource resource="reports" title="Reports" description="Security report metrics derived from current backend records."/>;
   if(slug==="alerts") return <BackendResource resource="alerts" title="Alerts" description="Security alerts stored in the WebShield backend."/>;
   if(slug==="settings") return <SettingsPage/>;
