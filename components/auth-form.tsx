@@ -14,12 +14,16 @@ export function AuthForm({ mode, error, message, next }: { mode: Mode; error?: s
   }[mode];
   const action = mode === "login" ? loginAction : mode === "register" ? registerAction : mode === "forgot" ? forgotPasswordAction : resetPasswordAction;
   const messages: Record<string,string> = {
-    invalid: "Please check the fields and try again.", credentials: "The email or password is incorrect.",
-    "not-configured": "Production authentication is integration-ready. Configure Supabase environment variables to activate it.",
-    signup: "Registration could not be completed.", "verify-email": "Check your email to verify the new account.",
+    invalid: "Please check the fields and try again.",
+    credentials: "The email or password is incorrect, or the email has not been verified yet.",
+    "not-configured": "Production authentication is not configured.",
+    signup: "Registration could not be completed. Please try again.",
+    "verify-email": "Account created. Check your inbox and Spam/Promotions for the verification email, then sign in.",
+    "email-verified": "Email verified successfully. You can now sign in.",
     "integration-ready": "Password recovery is ready to activate when Supabase Auth is configured.",
     sent: "If an account exists, a password recovery email has been requested.",
-    weak: "Password must contain at least 10 characters.", failed: "Password update failed. Request a new recovery link.",
+    weak: "Password must contain at least 10 characters.",
+    failed: "Password update failed. Request a new recovery link.",
     "password-updated": "Password updated. You can now sign in."
   };
   return (
@@ -41,7 +45,7 @@ export function AuthForm({ mode, error, message, next }: { mode: Mode; error?: s
             {mode === "login" && <input type="hidden" name="next" value={next || "/app/dashboard"} />}
             <button className="btn full" type="submit">{mode === "login" ? "Sign in" : mode === "register" ? "Create account" : mode === "forgot" ? "Send recovery email" : "Update password"}<Icon name="chevron"/></button>
           </form>
-          {mode === "login" && <><div className="authMeta"><Link href="/forgot-password">Forgot password?</Link><span>New to WebShield? <Link href="/register">Create account</Link></span></div><div className="demoLogin"><b>Demo mode</b><p>Use any valid-looking email and an 8+ character password. Use an email beginning with <code>admin@</code> only to preview the demo admin workspace.</p></div></>}
+          {mode === "login" && <><div className="authMeta"><Link href="/forgot-password">Forgot password?</Link><span>New to WebShield? <Link href="/register">Create account</Link></span></div><div className="demoLogin"><b>Demo mode</b><p>Use <code>admin@webshield.demo</code> or <code>client@webshield.demo</code> with the demo password for preview access only.</p></div></>}
           {mode === "register" && <div className="authMeta center">Already have an account? <Link href="/login">Sign in</Link></div>}
           {(mode === "forgot" || mode === "reset") && <div className="authMeta center"><Link href="/login">Back to sign in</Link></div>}
         </div>
