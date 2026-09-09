@@ -7,27 +7,14 @@ import { Icon } from "@/components/icons";
 type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
 type Finding = { severity: Severity; category: string; title: string; detail: string; impact: string; fix: string };
 type StoredScan = {
-  requestedUrl: string;
-  finalUrl: string;
-  hostname: string;
-  status: number;
-  statusText?: string;
-  responseMs: number;
-  https: boolean;
-  redirectedToHttps: boolean;
-  securityScore: number;
-  grade: string;
-  overallRisk: Severity;
-  findingCounts: Record<Severity, number>;
-  findings: Finding[];
+  requestedUrl: string; finalUrl: string; hostname: string; status: number; statusText?: string; responseMs: number;
+  https: boolean; redirectedToHttps: boolean; securityScore: number; grade: string; overallRisk: Severity;
+  findingCounts: Record<Severity, number>; findings: Finding[];
   headers: { key: string; label: string; present: boolean; value: string | null }[];
-  server: string | null;
-  poweredBy: string | null;
-  cors: string | null;
+  server: string | null; poweredBy: string | null; cors: string | null;
   cookies: { observed: number; missingSecure: number; missingHttpOnly: number; missingSameSite: number };
   dns: { resolved: boolean; addresses: { address: string; family: number }[] };
-  technologies: { signal: string; value: string }[];
-  scannedAt: string;
+  technologies: { signal: string; value: string }[]; scannedAt: string;
 };
 
 const STORAGE_KEY = "webshield:last-scan";
@@ -36,18 +23,13 @@ function useLatestScan() {
   const [scan, setScan] = useState<StoredScan | null>(null);
   useEffect(() => {
     const read = () => {
-      try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
-        setScan(raw ? JSON.parse(raw) as StoredScan : null);
-      } catch { setScan(null); }
+      try { const raw = window.localStorage.getItem(STORAGE_KEY); setScan(raw ? JSON.parse(raw) as StoredScan : null); }
+      catch { setScan(null); }
     };
     read();
     window.addEventListener("storage", read);
     window.addEventListener("webshield:scan-updated", read as EventListener);
-    return () => {
-      window.removeEventListener("storage", read);
-      window.removeEventListener("webshield:scan-updated", read as EventListener);
-    };
+    return () => { window.removeEventListener("storage", read); window.removeEventListener("webshield:scan-updated", read as EventListener); };
   }, []);
   return scan;
 }
@@ -120,7 +102,9 @@ export function LiveTrafficIntelligencePage() {
   },[]);
 
   const countries=useMemo(()=>{
-    const m=new Map<string,number>(); visitors.forEach(v=>m.set(v.country||"Unknown",(m.get(v.country||"Unknown")||0)+1)); return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8);
+    const m=new Map<string,number>();
+    visitors.forEach(v=>m.set(v.country||"Unknown",(m.get(v.country||"Unknown")||0)+1));
+    return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8);
   },[visitors]);
   const botThreats=useMemo(()=>threats.filter(t=>/bot|crawler|automation/i.test(String(t.type||""))),[threats]);
 
@@ -128,7 +112,7 @@ export function LiveTrafficIntelligencePage() {
     <div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> Live Visitors</div><h1>Visitor & Traffic Intelligence</h1><p>External scan intelligence is available before integration. Real visitor IP, country, device, bot and request activity appears only after traffic/log access is connected.</p></div><span className={`statusTag ${connected?"safe":"medium"}`}>{connected?"BACKEND CONNECTED":"PRE-INTEGRATION"}</span></div>
     <PreIntegrationIntelligence compact/>
 
-    <article className="panel" style={{marginTop:14}}><div className="panelHead"><div><h3>Connected Traffic Data</h3><p>{message || "Visitor records stored by the WebShield collector/provider."}</p></div><span className={`statusTag ${visitors.length?"safe":"medium"}`}>{visitors.length?`${visitors.length} VISITORS":"NO TRAFFIC DATA"}</span></div>
+    <article className="panel" style={{marginTop:14}}><div className="panelHead"><div><h3>Connected Traffic Data</h3><p>{message || "Visitor records stored by the WebShield collector/provider."}</p></div><span className={`statusTag ${visitors.length?"safe":"medium"}`}>{visitors.length ? `${visitors.length} VISITORS` : "NO TRAFFIC DATA"}</span></div>
       {visitors.length ? <div className="tableScroll"><table><thead><tr><th>IP</th><th>Country / City</th><th>Device</th><th>Browser / OS</th><th>Referrer</th><th>Last Seen</th></tr></thead><tbody>{visitors.slice(0,50).map((v,i)=><tr key={v.id||i}><td><code>{v.ip_address||"—"}</code></td><td>{v.country||"Unknown"}<small>{v.city||""}</small></td><td>{v.device||"—"}</td><td>{v.browser||"—"}<small>{v.operating_system||""}</small></td><td>{v.referrer||"Direct/Unknown"}</td><td>{v.last_seen_at?new Date(v.last_seen_at).toLocaleString():"—"}</td></tr>)}</tbody></table></div> : <div className="formNotice">No visitor request logs are available yet. This is expected before a collector, analytics/log source, or edge/WAF integration is connected.</div>}
     </article>
 
