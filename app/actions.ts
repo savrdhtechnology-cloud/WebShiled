@@ -55,7 +55,23 @@ export async function registerAction(formData: FormData) {
     }
   });
 
-  if (error || !data.user) redirect("/register?error=signup");
+  if (error) {
+    console.error("[WebShield signup] Supabase Auth error", {
+      code: (error as { code?: string }).code || "unknown",
+      status: error.status || 0,
+      message: error.message
+    });
+    const code = (error as { code?: string }).code || "signup";
+    if (code === "over_email_send_rate_limit") redirect("/register?error=email-rate-limit");
+    if (code === "email_address_invalid") redirect("/register?error=email-invalid");
+    if (code === "weak_password") redirect("/register?error=weak-password");
+    if (code === "signup_disabled") redirect("/register?error=signup-disabled");
+    redirect("/register?error=signup-auth");
+  }
+  if (!data.user) {
+    console.error("[WebShield signup] No user returned without Auth error");
+    redirect("/register?error=signup-auth");
+  }
   redirect("/login?message=verify-email");
 }
 
