@@ -3,9 +3,12 @@
 import { redirect } from "next/navigation";
 import { clearSession, createDemoSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { Role } from "@/lib/types";
 
 export type AuthState = { error?: string; message?: string };
+
+const DEMO_PASSWORD = "WebShield123!";
+const DEMO_ADMIN_EMAIL = "admin@webshield.demo";
+const DEMO_CLIENT_EMAIL = "client@webshield.demo";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) || "").trim();
@@ -17,6 +20,19 @@ export async function loginAction(formData: FormData) {
   const next = text(formData, "next") || "/app/dashboard";
   if (!email || password.length < 8) redirect("/login?error=invalid");
 
+  // Explicit demo accounts must continue to work even when Supabase is configured.
+  if (process.env.WEB_SHIELD_DEMO_MODE !== "false" && password === DEMO_PASSWORD) {
+    if (email === DEMO_ADMIN_EMAIL) {
+      await createDemoSession("ADMIN");
+      redirect("/admin/dashboard");
+    }
+    if (email === DEMO_CLIENT_EMAIL) {
+      await createDemoSession("OWNER");
+      redirect("/app/dashboard");
+    }
+  }
+
+  // All non-demo credentials are checked against real Supabase Auth.
   const supabase = await createClient();
   if (supabase) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -24,11 +40,6 @@ export async function loginAction(formData: FormData) {
     redirect(next.startsWith("/") ? next : "/app/dashboard");
   }
 
-  if (process.env.WEB_SHIELD_DEMO_MODE !== "false") {
-    const role: Role = email.startsWith("admin@") ? "ADMIN" : "OWNER";
-    await createDemoSession(role);
-    redirect(role === "ADMIN" && next.startsWith("/admin") ? next : "/app/dashboard");
-  }
   redirect("/login?error=not-configured");
 }
 
