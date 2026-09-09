@@ -13,23 +13,23 @@ function json(data: unknown, init = 200, meta: Record<string, unknown> = {}) {
   }, { status: init });
 }
 
-function normalizeDomain(input: string) {
-  const raw = input.trim();
-  if (!raw) return "";
-  try {
-    const parsed = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
-    return parsed.hostname.toLowerCase().replace(/^www\./, "").replace(/\.$/, "");
-  } catch {
-    return "";
-  }
-}
-
 async function countRows(client: Awaited<ReturnType<typeof createClient>>, table: string, orgId: string, extra?: (q: any) => any) {
   let query: any = client.from(table).select("*", { count: "exact", head: true }).eq("organization_id", orgId);
   if (extra) query = extra(query);
   const { count, error } = await query;
   if (error) throw error;
   return count || 0;
+}
+
+function normalizeDomain(input: string) {
+  const raw = input.trim().toLowerCase();
+  if (!raw) return "";
+  try {
+    const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    return new URL(withProtocol).hostname.replace(/^www\./, "");
+  } catch {
+    return raw.replace(/^https?:\/\//, "").split("/")[0].replace(/^www\./, "").replace(/:\d+$/, "");
+  }
 }
 
 export async function GET(_: NextRequest, context: { params: Promise<{ resource: string[] }> }) {
@@ -49,17 +49,27 @@ export async function GET(_: NextRequest, context: { params: Promise<{ resource:
   try {
     if (key === "dashboard") {
       const activeSince = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      const [websites, visitors, activeVisitors, threats, blocked, alertsCount, threatRows, alertRows] = await Promise.all([
+      const [websites, visitors, activeVisitors, threats, blocked, alertsCount, threatRows, alertRows, websiteRows, visitorRows, sessionRows] = await Promise.all([
         countRows(client, "websites", orgId),
         countRows(client, "visitors", orgId),
         countRows(client, "visitors", orgId, q => q.gte("last_seen_at", activeSince)),
         countRows(client, "threat_events", orgId),
         countRows(client, "visitor_sessions", orgId, q => q.eq("status", "BLOCKED")),
         countRows(client, "alerts", orgId, q => q.is("acknowledged_at", null)),
-        client.from("threat_events").select("id,type,severity,source_ip,target_url,risk_score,status,action_taken,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(6),
-        client.from("alerts").select("id,type,severity,title,message,acknowledged_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(6)
+        client.from("threat_events").select("id,type,severity,source_ip,target_url,risk_score,status,action_taken,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(12),
+        client.from("alerts").select("id,type,severity,title,message,acknowledged_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(8),
+        client.from("websites").select("id,domain,status,verified_at,ssl_status,integration_status,last_event_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: true }).limit(20),
+        client.from("visitors").select("id,website_id,country,city,device,browser,operating_system,referrer,first_seen_at,last_seen_at").eq("organization_id", orgId).order("last_seen_at", { ascending: false }).limit(100),
+        client.from("visitor_sessions").select("id,website_id,visitor_id,requested_url,status,risk_score,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(240)
       ]);
-      return json({ metrics: { websites, visitors, activeVisitors, threats, blockedRequests: blocked, openAlerts: alertsCount }, threats: threatRows.data || [], alerts: alertRows.data || [] });
+      return json({
+        metrics: { websites, visitors, activeVisitors, threats, blockedRequests: blocked, openAlerts: alertsCount },
+        threats: threatRows.data || [],
+        alerts: alertRows.data || [],
+        websitesData: websiteRows.data || [],
+        visitorsData: visitorRows.data || [],
+        sessionsData: sessionRows.data || []
+      });
     }
 
     if (key === "websites") {
@@ -157,19 +167,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
     if (key === "websites") {
       if (!body.domain || typeof body.domain !== "string") return json({ code: "INVALID_DOMAIN", message: "domain is required." }, 400);
       const domain = normalizeDomain(body.domain);
-      if (!domain) return json({ code: "INVALID_DOMAIN", message: "Enter a valid website domain or URL." }, 400);
-
-      const { data: existingRows, error: existingError } = await client
-        .from("websites")
-        .select("id,domain,status,verified_at,ssl_status,integration_status,created_at,updated_at")
-        .eq("organization_id", orgId);
+      if (!domain || !domain.includes(".")) return json({ code: "INVALID_DOMAIN", message: "Enter a valid website domain." }, 400);
+      const { data: existing, error: existingError } = await client.from("websites").select("id,domain,status,ssl_status,integration_status,verified_at,created_at").eq("organization_id", orgId).eq("domain", domain).maybeSingle();
       if (existingError) throw existingError;
-      const existing = (existingRows || []).find((row: any) => normalizeDomain(String(row.domain || "")) === domain);
-      if (existing) return json(existing, 200, { existing: true, normalizedDomain: domain });
-
+      if (existing) return json(existing, 200, { reused: true });
       const { data, error } = await client.from("websites").insert({ organization_id: orgId, domain, status: "VERIFICATION_REQUIRED", ssl_status: "UNKNOWN", integration_status: "NOT_CONNECTED" }).select("id,domain,status,ssl_status,integration_status,created_at").single();
       if (error) throw error;
-      return json(data, 201, { normalizedDomain: domain });
+      return json(data, 201, { reused: false });
     }
 
     if (key === "firewall") {
@@ -205,25 +209,25 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
   if (!user) return json({ code: "UNAUTHORIZED", message: "Authentication required." }, 401);
   if (user.demo) return json({ code: "REAL_ACCOUNT_REQUIRED", message: "Use a real registered account for backend write operations." }, 409, { demo: true });
   if (!user.organizationId || user.organizationId === "unassigned") return json({ code: "NO_WORKSPACE", message: "No WebShield workspace is assigned to this account." }, 409);
-  if (!["OWNER", "ADMIN"].includes(user.role)) return json({ code: "FORBIDDEN", message: "Owner or admin role required to remove a website." }, 403);
 
   const { resource } = await context.params;
   const key = resource[0] || "";
-  if (key !== "websites") return json({ code: "DELETE_NOT_SUPPORTED", message: `Delete is not supported for ${key || "this resource"}.` }, 405);
-  if (!request.headers.get("content-type")?.includes("application/json")) return json({ code: "INVALID_CONTENT_TYPE", message: "application/json required." }, 415);
+  if (key !== "websites") return json({ code: "DELETE_NOT_SUPPORTED", message: "Delete is only available for websites." }, 405);
+  if (!["OWNER","ADMIN"].includes(user.role)) return json({ code: "FORBIDDEN", message: "Owner or admin role required." }, 403);
 
-  const body = await request.json().catch(() => null) as Record<string, any> | null;
-  if (!body?.id || typeof body.id !== "string") return json({ code: "INVALID_WEBSITE", message: "website id is required." }, 400);
+  const id = request.nextUrl.searchParams.get("id") || "";
+  if (!id) return json({ code: "INVALID_ID", message: "Website id is required." }, 400);
 
   const client = await createClient();
-  const { data, error } = await client
-    .from("websites")
-    .delete()
-    .eq("organization_id", user.organizationId)
-    .eq("id", body.id)
-    .select("id,domain")
-    .maybeSingle();
-  if (error) return json({ code: "DATABASE_ERROR", message: error.message }, 500);
-  if (!data) return json({ code: "NOT_FOUND", message: "Website not found in this workspace." }, 404);
-  return json(data, 200, { removed: true });
+  try {
+    const { data: site, error: lookupError } = await client.from("websites").select("id,domain,status,integration_status").eq("organization_id", user.organizationId).eq("id", id).maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!site) return json({ code: "NOT_FOUND", message: "Website not found." }, 404);
+    const { error } = await client.from("websites").delete().eq("organization_id", user.organizationId).eq("id", id);
+    if (error) throw error;
+    return json({ id: site.id, domain: site.domain, removed: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Website removal failed.";
+    return json({ code: "DATABASE_ERROR", message }, 500);
+  }
 }
