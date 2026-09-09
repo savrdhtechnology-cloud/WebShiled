@@ -4,11 +4,6 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_ORIGINS = new Set([
-  "https://savrdhfinancialservices.com",
-  "https://www.savrdhfinancialservices.com"
-]);
-
 const buckets = new Map<string, { count: number; resetAt: number }>();
 function limited(ip: string) {
   const now = Date.now();
@@ -21,8 +16,20 @@ function limited(ip: string) {
   return current.count > 120;
 }
 
+function safeOrigin(value: string | null) {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return "";
+    if (!url.hostname || url.hostname === "localhost" || url.hostname.endsWith(".localhost")) return "";
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
 function cors(origin: string | null) {
-  const allowed = origin && ALLOWED_ORIGINS.has(origin) ? origin : "";
+  const allowed = safeOrigin(origin);
   return {
     "access-control-allow-origin": allowed,
     "access-control-allow-methods": "POST, OPTIONS",
@@ -41,13 +48,15 @@ function browserInfo(ua: string) {
 }
 
 export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, { status: 204, headers: cors(request.headers.get("origin")) });
+  const origin = request.headers.get("origin");
+  if (!safeOrigin(origin)) return new NextResponse(null, { status: 403 });
+  return new NextResponse(null, { status: 204, headers: cors(origin) });
 }
 
 export async function POST(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin || !ALLOWED_ORIGINS.has(origin)) {
-    return NextResponse.json({ ok: false, error: "origin_not_allowed" }, { status: 403, headers: cors(origin) });
+  const origin = safeOrigin(request.headers.get("origin"));
+  if (!origin) {
+    return NextResponse.json({ ok: false, error: "origin_not_allowed" }, { status: 403 });
   }
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "";
@@ -66,12 +75,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400, headers: cors(origin) });
   }
 
+  let targetHost = "";
+  try { targetHost = new URL(body.url).hostname.toLowerCase(); } catch {}
+  let originHost = "";
+  try { originHost = new URL(origin).hostname.toLowerCase(); } catch {}
+  const canonicalTarget = targetHost.replace(/^www\./, "");
+  const canonicalOrigin = originHost.replace(/^www\./, "");
+  if (!canonicalTarget || canonicalTarget !== canonicalOrigin) {
+    return NextResponse.json({ ok: false, error: "target_origin_mismatch" }, { status: 403, headers: cors(origin) });
+  }
+
   const ua = request.headers.get("user-agent") || "";
   const { browser, os, device } = browserInfo(ua);
   const botByUa = /bot|crawler|spider|headless|phantom|selenium|playwright|puppeteer/i.test(ua);
   const isBot = Boolean(body.webdriver) || botByUa;
   const country = request.headers.get("x-vercel-ip-country") || "";
-  const city = decodeURIComponent(request.headers.get("x-vercel-ip-city") || "");
+  const cityHeader = request.headers.get("x-vercel-ip-city") || "";
+  let city = cityHeader;
+  try { city = decodeURIComponent(cityHeader); } catch {}
 
   const rpc = await fetch(`${SUPABASE_URL}/rest/v1/rpc/webshield_ingest_event`, {
     method: "POST",
