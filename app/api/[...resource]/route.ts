@@ -13,6 +13,17 @@ function json(data: unknown, init = 200, meta: Record<string, unknown> = {}) {
   }, { status: init });
 }
 
+function normalizeDomain(input: string) {
+  const raw = input.trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    return parsed.hostname.toLowerCase().replace(/^www\./, "").replace(/\.$/, "");
+  } catch {
+    return "";
+  }
+}
+
 async function countRows(client: Awaited<ReturnType<typeof createClient>>, table: string, orgId: string, extra?: (q: any) => any) {
   let query: any = client.from(table).select("*", { count: "exact", head: true }).eq("organization_id", orgId);
   if (extra) query = extra(query);
@@ -145,10 +156,20 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
   try {
     if (key === "websites") {
       if (!body.domain || typeof body.domain !== "string") return json({ code: "INVALID_DOMAIN", message: "domain is required." }, 400);
-      const domain = body.domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+      const domain = normalizeDomain(body.domain);
+      if (!domain) return json({ code: "INVALID_DOMAIN", message: "Enter a valid website domain or URL." }, 400);
+
+      const { data: existingRows, error: existingError } = await client
+        .from("websites")
+        .select("id,domain,status,verified_at,ssl_status,integration_status,created_at,updated_at")
+        .eq("organization_id", orgId);
+      if (existingError) throw existingError;
+      const existing = (existingRows || []).find((row: any) => normalizeDomain(String(row.domain || "")) === domain);
+      if (existing) return json(existing, 200, { existing: true, normalizedDomain: domain });
+
       const { data, error } = await client.from("websites").insert({ organization_id: orgId, domain, status: "VERIFICATION_REQUIRED", ssl_status: "UNKNOWN", integration_status: "NOT_CONNECTED" }).select("id,domain,status,ssl_status,integration_status,created_at").single();
       if (error) throw error;
-      return json(data, 201);
+      return json(data, 201, { normalizedDomain: domain });
     }
 
     if (key === "firewall") {
@@ -177,4 +198,32 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
     const message = error instanceof Error ? error.message : "Database write failed.";
     return json({ code: "DATABASE_ERROR", message }, 500);
   }
+}
+
+export async function DELETE(request: NextRequest, context: { params: Promise<{ resource: string[] }> }) {
+  const user = await getCurrentUser();
+  if (!user) return json({ code: "UNAUTHORIZED", message: "Authentication required." }, 401);
+  if (user.demo) return json({ code: "REAL_ACCOUNT_REQUIRED", message: "Use a real registered account for backend write operations." }, 409, { demo: true });
+  if (!user.organizationId || user.organizationId === "unassigned") return json({ code: "NO_WORKSPACE", message: "No WebShield workspace is assigned to this account." }, 409);
+  if (!["OWNER", "ADMIN"].includes(user.role)) return json({ code: "FORBIDDEN", message: "Owner or admin role required to remove a website." }, 403);
+
+  const { resource } = await context.params;
+  const key = resource[0] || "";
+  if (key !== "websites") return json({ code: "DELETE_NOT_SUPPORTED", message: `Delete is not supported for ${key || "this resource"}.` }, 405);
+  if (!request.headers.get("content-type")?.includes("application/json")) return json({ code: "INVALID_CONTENT_TYPE", message: "application/json required." }, 415);
+
+  const body = await request.json().catch(() => null) as Record<string, any> | null;
+  if (!body?.id || typeof body.id !== "string") return json({ code: "INVALID_WEBSITE", message: "website id is required." }, 400);
+
+  const client = await createClient();
+  const { data, error } = await client
+    .from("websites")
+    .delete()
+    .eq("organization_id", user.organizationId)
+    .eq("id", body.id)
+    .select("id,domain")
+    .maybeSingle();
+  if (error) return json({ code: "DATABASE_ERROR", message: error.message }, 500);
+  if (!data) return json({ code: "NOT_FOUND", message: "Website not found in this workspace." }, 404);
+  return json(data, 200, { removed: true });
 }
