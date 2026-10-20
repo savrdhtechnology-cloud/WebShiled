@@ -59,9 +59,10 @@ export async function GET(_: NextRequest, context: { params: Promise<{ resource:
         client.from("threat_events").select("id,type,severity,source_ip,target_url,risk_score,status,action_taken,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(12),
         client.from("alerts").select("id,type,severity,title,message,acknowledged_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(8),
         client.from("websites").select("id,domain,status,verified_at,ssl_status,integration_status,last_event_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: true }).limit(20),
-        client.from("visitors").select("id,website_id,country,city,device,browser,operating_system,referrer,first_seen_at,last_seen_at").eq("organization_id", orgId).order("last_seen_at", { ascending: false }).limit(100),
-        client.from("visitor_sessions").select("id,website_id,visitor_id,requested_url,status,risk_score,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(240)
+        client.from("visitors").select("id,website_id,ip_address,country,city,device,browser,operating_system,referrer,first_seen_at,last_seen_at").eq("organization_id", orgId).order("last_seen_at", { ascending: false }).limit(1000),
+        client.from("visitor_sessions").select("id,website_id,visitor_id,requested_url,status,risk_score,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(5000)
       ]);
+      for (const result of [threatRows,alertRows,websiteRows,visitorRows,sessionRows]) { if(result.error) throw result.error; }
       return json({
         metrics: { websites, visitors, activeVisitors, threats, blockedRequests: blocked, openAlerts: alertsCount },
         threats: threatRows.data || [],
@@ -207,6 +208,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
     }
 
     if (key === "support") {
+      if (!["LOW","MEDIUM","HIGH"].includes(body.priority || "MEDIUM")) return json({code:"INVALID_PRIORITY",message:"Valid priority required."},400);
       if (!body.subject) return json({ code: "INVALID_TICKET", message: "subject is required." }, 400);
       const { data, error } = await client.from("support_tickets").insert({ organization_id: orgId, created_by: user.id, subject: String(body.subject), description: body.description ? String(body.description) : null, priority: body.priority || "MEDIUM" }).select("*").single();
       if (error) throw error;
@@ -246,4 +248,21 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     const message = error instanceof Error ? error.message : "Website removal failed.";
     return json({ code: "DATABASE_ERROR", message }, 500);
   }
+}
+
+export async function PATCH(request:NextRequest,context:{params:Promise<{resource:string[]}>}){
+ const user=await getCurrentUser();
+ if(!user)return json({code:'UNAUTHORIZED',message:'Authentication required.'},401);
+ if(user.demo||!user.organizationId||user.organizationId==='unassigned')return json({code:'NO_WORKSPACE',message:'A real workspace account is required.'},409);
+ if(!['OWNER','ADMIN','SECURITY_ANALYST'].includes(user.role))return json({code:'FORBIDDEN',message:'A security role is required to update records.'},403);
+ const {resource}=await context.params;const key=resource[0];
+ if(!['threats','support'].includes(key))return json({code:'UNSUPPORTED',message:'This resource does not support status updates.'},405);
+ if(!request.headers.get('content-type')?.includes('application/json'))return json({code:'INVALID_CONTENT_TYPE',message:'application/json required.'},415);
+ const body=await request.json().catch(()=>null);
+ if(!body||typeof body.id!=='string'||!['OPEN','RESOLVED'].includes(body.status))return json({code:'INVALID_UPDATE',message:'An id and valid status are required.'},400);
+ const client=await createClient();
+ const {data,error}=await client.from(key==='threats'?'threat_events':'support_tickets').update({status:body.status}).eq('organization_id',user.organizationId).eq('id',body.id).select('id,status').maybeSingle();
+ if(error)return json({code:'DATABASE_ERROR',message:error.message},500);
+ if(!data)return json({code:'NOT_FOUND',message:'Record not found in this workspace.'},404);
+ return json(data);
 }

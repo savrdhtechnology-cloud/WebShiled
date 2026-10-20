@@ -22,14 +22,14 @@ export default function HomePage() {
         <nav aria-label="Primary navigation">
           <a href="#scan">Scan</a><a href="#features">Features</a><a href="#how">How it works</a><a href="#pricing">Pricing</a><a href="#security">Security</a>
         </nav>
-        <div className="navActions"><Link className="linkBtn" href="/login">Login</Link><Link className="btn small" href="/register">Get Started</Link></div>
+        <div className="navActions"><Link className="linkBtn" href="/login?next=/app/dashboard">Dashboard</Link><Link className="linkBtn" href="/login">Login</Link><Link className="btn small" href="/register">Get Started</Link></div>
       </header>
 
       <section className="hero container">
         <div className="eyebrow"><span className="pulseDot"/> Website Security Monitoring & Protection Platform</div>
         <h1>Scan. Monitor. <span>Protect.</span></h1>
         <p>Enter a website to check its external security posture. Then connect WebShield to monitor real traffic, detect suspicious activity, receive alerts and enforce supported protection rules.</p>
-        <div className="heroActions"><a className="btn" href="#scan">Scan Website Free <Icon name="chevron"/></a><Link className="ghostBtn" href="/login?demo=1">Explore Dashboard</Link></div>
+        <div className="heroActions"><a className="btn" href="#scan">Scan Website Free <Icon name="chevron"/></a><Link className="ghostBtn" href="/login?next=/app/dashboard">Explore Dashboard</Link></div>
         <div className="trustLine"><Icon name="shield"/><span>Built by <strong>Savrdh Technologies</strong></span><i/><span>Passive scan is real · Live protection requires website integration</span></div>
       </section>
 

@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {bucketSessions,rowsToCsv} from '../lib/telemetry.ts';
+const now=Date.parse('2026-10-20T12:00:00Z');
+const date=offset=>new Date(now+offset).toISOString();
+const rows=[{occurred_at:date(-1000),visitor_id:'a',status:'SAFE'},{occurred_at:date(-2000),visitor_id:'a',status:'BLOCKED'},{occurred_at:date(-2000),visitor_id:'b',status:'SAFE'},{occurred_at:date(-86400001),visitor_id:'old'},{occurred_at:date(1),visitor_id:'future'},{occurred_at:'invalid'}];
+const data=bucketSessions(rows,now,1);
+assert.equal(data.reduce((n,b)=>n+b.requests,0),3,'Window excludes old, future and invalid records');
+assert.equal(data.at(-1).visitors,2,'Unique visitor counts deduplicate requests in each bucket');
+assert.equal(data.at(-1).blocked,1,'Blocked counts use stored decisions');
+assert.equal(bucketSessions([{occurred_at:date(-86400000)}],now,1)[0].requests,1,'Start boundary is included');
+assert.equal(bucketSessions([{occurred_at:date(0)}],now,1).at(-1).requests,1,'Current-time record belongs to last bucket');
+assert.ok(bucketSessions([],now,7).every(b=>b.requests===0),'Empty real data never becomes simulated traffic');
+const csv=rowsToCsv([{name:'=HYPERLINK("test")',note:'a,b\nline',value:42},{name:' +SUM(1)',note:'"quoted"',value:-5}]);
+assert.ok(csv.includes('"\'=HYPERLINK('),'CSV formula cells are escaped');
+assert.ok(csv.includes('"\' +SUM(1)"'),'Leading whitespace cannot bypass formula protection');
+assert.ok(csv.includes('"a,b\nline"'),'Commas and newlines are quoted');
+assert.ok(csv.includes('"-5"'),'Numeric negative values remain numbers');
+console.log('Telemetry windowing, deduplication and CSV safety checks passed.');
