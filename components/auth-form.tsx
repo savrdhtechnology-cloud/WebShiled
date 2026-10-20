@@ -7,7 +7,7 @@ type Mode = "login" | "register" | "forgot" | "reset";
 
 export function AuthForm({ mode, error, message, next }: { mode: Mode; error?: string; message?: string; next?: string }) {
   const copy = {
-    login: ["Welcome back", "Sign in to your WebShield security workspace."],
+    login: ["Secure access", "Sign in to your WebShield security operations workspace."],
     register: ["Create your workspace", "Start with the WebShield V1 security operations foundation."],
     forgot: ["Reset access", "Request a secure password recovery email."],
     reset: ["Choose a new password", "Use at least 10 characters for your new password."]
@@ -16,6 +16,7 @@ export function AuthForm({ mode, error, message, next }: { mode: Mode; error?: s
   const messages: Record<string,string> = {
     invalid: "Please check the fields and try again.",
     credentials: "The email or password is incorrect, or the email has not been verified yet.",
+    "no-workspace": "This account is not mapped to an active WebShield workspace.",
     "not-configured": "Production authentication is not configured.",
     signup: "Registration could not be completed. Please try again.",
     "verify-email": "Account created. Check your inbox and Spam/Promotions for the verification email, then sign in.",
@@ -27,10 +28,10 @@ export function AuthForm({ mode, error, message, next }: { mode: Mode; error?: s
     "password-updated": "Password updated. You can now sign in."
   };
   return (
-    <main className="authPage">
+    <main className="authPage authPageMotion"><div className="authMotion" aria-hidden="true"><span className="authOrb authOrbOne"/><span className="authOrb authOrbTwo"/><span className="authOrb authOrbThree"/><span className="authGridMotion"/><span className="authScanLine"/></div>
       <section className="authVisual">
         <Logo />
-        <div className="authPitch"><span className="eyebrow"><span className="pulseDot"/> SECURITY OPERATIONS</span><h1>Visibility before vulnerability.</h1><p>Monitor traffic, investigate risk and manage website security from a unified workspace.</p><div className="authFeature"><Icon name="shield"/><span><b>Security-first foundation</b><small>RBAC · audit logs · secure sessions · RLS-ready data model</small></span></div><div className="authFeature"><Icon name="chart"/><span><b>Clear telemetry boundaries</b><small>Demo providers never masquerade as production security data</small></span></div></div>
+        <div className="authPitch"><span className="eyebrow"><span className="pulseDot"/> SAVRDH TECHNOLOGIES · WEBSHIELD</span><h1>Security starts before the dashboard.</h1><p>Authenticated access to website monitoring, threat intelligence, database security and approved remediation.</p><div className="authFeature"><Icon name="shield"/><span><b>Protected route access</b><small>Supabase session · tenant mapping · role-based access control</small></span></div><div className="authFeature"><Icon name="lock"/><span><b>No guest or demo bypass</b><small>Production access requires a real authenticated WebShield account</small></span></div></div>
         <small className="authCopyright">© 2026 Savrdh Technologies</small>
       </section>
       <section className="authPanel">
@@ -45,7 +46,7 @@ export function AuthForm({ mode, error, message, next }: { mode: Mode; error?: s
             {mode === "login" && <input type="hidden" name="next" value={next || "/app/dashboard"} />}
             <button className="btn full" type="submit">{mode === "login" ? "Sign in" : mode === "register" ? "Create account" : mode === "forgot" ? "Send recovery email" : "Update password"}<Icon name="chevron"/></button>
           </form>
-          {mode === "login" && <><div className="authMeta"><Link href="/forgot-password">Forgot password?</Link><span>New to WebShield? <Link href="/register">Create account</Link></span></div><div className="demoLogin"><b>Demo mode</b><p>Use <code>admin@webshield.demo</code> or <code>client@webshield.demo</code> with the demo password for preview access only.</p></div></>}
+          {mode === "login" && <><div className="authMeta"><Link href="/forgot-password">Forgot password?</Link><span>New to WebShield? <Link href="/register">Create account</Link></span></div><div className="authSecureNote"><Icon name="shield" size={14}/><span><b>Protected sign-in</b><small>Valid email, password and mapped workspace are required.</small></span></div></>}
           {mode === "register" && <div className="authMeta center">Already have an account? <Link href="/login">Sign in</Link></div>}
           {(mode === "forgot" || mode === "reset") && <div className="authMeta center"><Link href="/login">Back to sign in</Link></div>}
         </div>
