@@ -241,7 +241,20 @@ export async function runPassiveScan(value: unknown) {
     ...(response.headers.get("cf-ray") ? [{ signal: "Edge/CDN signal", value: "Cloudflare" }] : [])
   ];
 
+  // Coverage is explicit: an external passive scan must never claim an internal audit ran.
+  const scanModules = [
+    { id: "ssl", name: "SSL & HTTPS", status: "PARTIAL", checks: ["HTTPS response", "HTTP to HTTPS redirects"], missing: ["Certificate expiry and chain validation need a dedicated TLS inspection"] },
+    { id: "headers", name: "Security Headers", status: "CHECKED", checks: ["Eight response security headers", "Cookie flags", "Basic CSP policy checks"], missing: ["Application-specific policy effectiveness requires contextual review"] },
+    { id: "website", name: "Website Security", status: "PARTIAL", checks: ["Public .env / .git indicators", "Mixed content indicators", "Selected CORS checks"], missing: ["A passive scan does not prove the site is free from vulnerabilities"] },
+    { id: "dns", name: "DNS Security", status: "PARTIAL", checks: ["DNS resolution", "SPF TXT", "DMARC TXT"], missing: ["DKIM requires owner-provided selector(s); DNSSEC not checked"] },
+    { id: "database", name: "Database Security", status: "REQUIRES_INTEGRATION", checks: [], missing: ["Requires authenticated read-only database/provider connection"] },
+    { id: "malware", name: "Malware Detection", status: "NOT_RUN", checks: [], missing: ["No malware engine or trusted reputation feed is configured"] },
+    { id: "vulnerabilities", name: "Vulnerability Scan", status: "REQUIRES_INTEGRATION", checks: [], missing: ["Requires authorized repository/dependency inventory and advisory matching"] },
+    { id: "monitoring", name: "Monitoring", status: "REQUIRES_INTEGRATION", checks: [], missing: ["Requires monitoring integration and scheduled checks"] }
+  ] as const;
+
   return {
+    scanModules,
     requestedUrl: target.toString(),
     finalUrl: finalUrl.toString(),
     hostname: finalUrl.hostname,
