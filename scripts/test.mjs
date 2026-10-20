@@ -1,8 +1,8 @@
 import { readFile, access } from "node:fs/promises";
 
 const required = [
-  "app/page.tsx", "app/login/page.tsx", "app/app/[[...slug]]/page.tsx",
-  "app/admin/[[...slug]]/page.tsx", "lib/security-engine/index.ts",
+  "app/page.tsx", "app/login/page.tsx", "app/app/[slug]/page.tsx",
+  "app/admin/[slug]/page.tsx", "lib/security-engine/index.ts",
   "supabase/migrations/0001_webshield_v1.sql", ".env.example", "README.md"
 ];
 for (const file of required) await access(file);
