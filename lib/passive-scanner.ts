@@ -1,4 +1,4 @@
-import { lookup } from "node:dns/promises";
+import { lookup, resolveTxt } from "node:dns/promises";
 import net from "node:net";
 
 export type FindingSeverity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
@@ -99,6 +99,36 @@ async function probePath(base: URL, path: string) {
   }
 }
 
+async function probeContent(base: URL, path: string) {
+  try {
+    const url = new URL(path, `${base.protocol}//${base.host}`);
+    const result = await fetchSafely(url, "GET");
+    const text = (await result.response.text()).slice(0, 8192);
+    return {
+      ok: result.response.status >= 200 && result.response.status < 300,
+      status: result.response.status,
+      text,
+      contentType: result.response.headers.get("content-type") || ""
+    };
+  } catch {
+    return { ok: false, status: 0, text: "", contentType: "" };
+  }
+}
+
+async function emailSecurity(hostname: string) {
+  const host = hostname.replace(/^www\./, "");
+  const [spfResult, dmarcResult] = await Promise.allSettled([
+    resolveTxt(host),
+    resolveTxt(`_dmarc.${host}`)
+  ]);
+  const spfRecords = spfResult.status === "fulfilled" ? spfResult.value.map(x => x.join("")).filter(x => /^v=spf1\b/i.test(x)) : [];
+  const dmarcRecords = dmarcResult.status === "fulfilled" ? dmarcResult.value.map(x => x.join("")).filter(x => /^v=DMARC1\b/i.test(x)) : [];
+  return {
+    spf: { present: spfRecords.length > 0, record: spfRecords[0] || null },
+    dmarc: { present: dmarcRecords.length > 0, record: dmarcRecords[0] || null }
+  };
+}
+
 function getSetCookies(headers: Headers) {
   const h = headers as Headers & { getSetCookie?: () => string[] };
   const list = h.getSetCookie?.();
@@ -152,6 +182,15 @@ export async function runPassiveScan(value: unknown) {
   const noSameSiteCookies = cookies.filter(c => !/;\s*samesite=/i.test(c));
   const securityTxt = await probePath(finalUrl, "/.well-known/security.txt");
   const robotsTxt = await probePath(finalUrl, "/robots.txt");
+  const [envProbe, gitProbe, mailSecurity, html] = await Promise.all([
+    probeContent(finalUrl, "/.env"),
+    probeContent(finalUrl, "/.git/HEAD"),
+    emailSecurity(finalUrl.hostname),
+    response.clone().text().then(x => x.slice(0, 1_000_000)).catch(() => "")
+  ]);
+  const envExposed = envProbe.ok && /(^|\n)[A-Z_][A-Z0-9_]{1,60}\s*=\s*[^\n]+/m.test(envProbe.text);
+  const gitExposed = gitProbe.ok && /^ref:\s*refs\/heads\//m.test(gitProbe.text);
+  const mixedContent = https && /(?:src|href)\s*=\s*["']http:\/\//i.test(html);
 
   const findings: ScanFinding[] = [];
   if (!https) add(findings, "HIGH", "Transport", "HTTPS is not active", "The final page is served over HTTP.", "Traffic can be read or altered in transit.", "Enable HTTPS and redirect every HTTP request to HTTPS.");
@@ -181,6 +220,11 @@ export async function runPassiveScan(value: unknown) {
   }
 
   if (!securityTxt.exists) add(findings, "INFO", "Disclosure Process", "security.txt not found", "No /.well-known/security.txt was found.", "Security researchers have no standardized reporting contact from this endpoint.", "Publish a security.txt file if you want a formal vulnerability-reporting contact.");
+  if (envExposed) add(findings, "CRITICAL", "Sensitive Files", "Environment file appears publicly exposed", "The /.env response matched environment-variable syntax.", "Secrets, credentials or service configuration could be disclosed.", "Remove the file from the public web root immediately, rotate any exposed credentials, and block dotfiles at the web server/CDN.");
+  if (gitExposed) add(findings, "HIGH", "Sensitive Files", "Git metadata appears publicly exposed", "The /.git/HEAD response matched a Git HEAD reference.", "Repository history or source code may be recoverable from the public site.", "Block /.git and other VCS metadata at the server/CDN and remove repository metadata from the deployed web root.");
+  if (mixedContent) add(findings, "MEDIUM", "Transport", "HTTPS page references HTTP resources", "The returned HTML includes at least one http:// src/href reference.", "Browsers may block resources or load them without transport protection.", "Serve all page resources over HTTPS and update hard-coded HTTP URLs.");
+  if (!mailSecurity.spf.present) add(findings, "LOW", "Email Security", "SPF record not detected", "No SPF TXT record was detected for the scanned hostname.", "Email spoofing protections may be incomplete for this domain.", "Publish and maintain an SPF record for authorized mail senders if this domain sends email.");
+  if (!mailSecurity.dmarc.present) add(findings, "LOW", "Email Security", "DMARC record not detected", "No DMARC TXT record was detected at _dmarc for the scanned hostname.", "Domain owners may have less visibility/control over spoofed email.", "Publish a DMARC policy after validating SPF/DKIM alignment for legitimate mail.");
 
   const headersPresent = checks.filter(c => c.present).length;
   const penalty = findings.reduce((sum, f) => sum + severityWeight(f.severity), 0);
@@ -220,7 +264,16 @@ export async function runPassiveScan(value: unknown) {
     cookies: { observed: cookies.length, missingSecure: insecureCookies.length, missingHttpOnly: noHttpOnlyCookies.length, missingSameSite: noSameSiteCookies.length },
     dns: { resolved: true, addresses: addresses.map(a => ({ address: a.address, family: a.family })) },
     technologies,
-    resources: { securityTxt, robotsTxt },
+    resources: {
+      securityTxt,
+      robotsTxt,
+      sensitiveFiles: {
+        env: { exposed: envExposed, status: envProbe.status },
+        gitHead: { exposed: gitExposed, status: gitProbe.status }
+      }
+    },
+    emailSecurity: mailSecurity,
+    mixedContent,
     scannedAt: new Date().toISOString(),
     mode: "LIVE_PASSIVE_POSTURE_SCAN",
     capabilities: {
