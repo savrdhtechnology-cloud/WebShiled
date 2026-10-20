@@ -4,8 +4,6 @@ import Link from 'next/link';
 import {bucketSessions,rowsToCsv} from '@/lib/telemetry';
 import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent} from 'react';
 import {ActivityGraph,VisitorMap,sampleLocations,type TrafficPoint} from './traffic-visuals';
-import {BackendWebsites} from './backend-websites';
-import {WebsiteScanner} from './website-scanner';
 import {DatabaseSecurity} from './database-security';
 import {AppearanceStudioPage} from './appearance-studio';
 import {Icon} from './icons';
@@ -28,7 +26,6 @@ export function ModuleWorkspace({page,connected=false}:{page:string;connected?:b
  async function acknowledge(row:Row){if(connected){if(!await write({id:row.id}))return}else setRows(current=>current.map(r=>r.id===row.id?{...r,acknowledged_at:new Date().toISOString()}:r));setSelected(null);setNotice(connected?'Alert acknowledged in Supabase.':'Alert acknowledged in this preview session.')}
  async function resolve(row:Row){if(connected){if(!await write({id:row.id,status:'RESOLVED'},'PATCH'))return}else setRows(current=>current.map(r=>r.id===row.id?{...r,status:'RESOLVED'}:r));setSelected(null);setNotice(connected?'Threat status updated.':'Threat resolved in this preview session.')}
  async function create(e:FormEvent){e.preventDefault();if(connected){if(!await write(resource==='support'?{subject,description,priority}:{name:subject,action:ruleAction,conditions:[{field:'risk_score',operator:'greater_than',value:80}]}))return}else setRows(current=>[{id:'LOCAL-'+Date.now(),...(resource==='support'?{subject,description,priority,status:'OPEN'}:{name:subject,action:ruleAction,enabled:true,provider_rule_id:null})},...current]);setSubject('');setDescription('');setNotice(resource==='support'?'Support ticket created.':'Rule saved. Enforcement requires a connected traffic provider.')}
- if(page==='websites')return <div className="connectedModule"><WebsiteScanner/><BackendWebsites/></div>;
  if(page==='database-security'||page==='fix-center')return <div className="connectedModule"><DatabaseSecurity mode={page==='fix-center'?'fixes':'security'}/></div>;
  if(page==='appearance')return <AppearanceStudioPage/>;
  if(page==='settings'||page==='system-settings')return <div className="workspaceModule"><section className="refPanel"><h2>Workspace connection</h2><p>Database: szvxrgbshmmsvujkusdm.supabase.co</p><p>{connected?'Authenticated workspace · Row Level Security enforced':'Design preview · Sign in to access workspace data'}</p>{loading?<p>Loading account…</p>:error?<p role="alert">{error}</p>:connected?<dl className="moduleDetail">{Object.entries(metrics).map(([k,v])=><div key={k}><dt>{k}</dt><dd>{text(v)}</dd></div>)}</dl>:<Link href="/login?next=/app/dashboard" className="refPrimary">Sign in to workspace</Link>}</section><AppearanceStudioPage/></div>;
