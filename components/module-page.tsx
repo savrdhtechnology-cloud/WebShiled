@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BackendResource } from "@/components/backend-resource";
+import { BackendWebsites } from "@/components/backend-websites";
 import { LiveTrafficIntelligencePage, PreIntegrationIntelligence } from "@/components/pre-integration-intelligence";
 
 function SettingsPage({admin=false}:{admin?:boolean}){
@@ -22,7 +23,7 @@ export function ClientModule({slug}:{slug:string}){
 }
 
 export function AdminModule({slug}:{slug:string}){
-  if(slug==="websites") return <BackendResource resource="websites" title="Websites" description="Website inventory for the current WebShield workspace."/>;
+  if(slug==="websites") return <div className="pageWrap"><div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> Administration</div><h1>Website Security Management</h1><p>Add, connect, verify and remove websites from the current WebShield workspace.</p></div><span className="statusTag safe">LIVE WEBSITE CONTROL</span></div><BackendWebsites/></div>;
   if(slug==="security-events") return <BackendResource resource="threats" title="Security Events" description="Threat and security events available to the current workspace."/>;
   if(slug==="plans") return <BackendResource resource="billing" title="Plans & Billing" description="Current subscription and plan limits from Supabase."/>;
   if(slug==="support-tickets") return <BackendResource resource="support" title="Support" description="Support tickets stored in the WebShield backend."/>;
