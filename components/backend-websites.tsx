@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/components/icons";
 
 type Website = { id:string; domain:string; status:string; verified_at:string|null; ssl_status:string; integration_status:string; created_at:string };
@@ -17,6 +17,9 @@ export function BackendWebsites() {
   const [integrationBusy,setIntegrationBusy] = useState(false);
   const [integrationError,setIntegrationError] = useState("");
   const [copied,setCopied] = useState(false);
+  const [adding,setAdding]=useState(false);
+  const integrationPanel=useRef<HTMLElement>(null);
+  useEffect(()=>{if(integration){integrationPanel.current?.scrollIntoView({behavior:'smooth',block:'start'});integrationPanel.current?.focus({preventScroll:true})}},[integration?.id]);
 
   const snippet = useMemo(() => integration?.collector_key
     ? `<script src="https://webshield-savrdh-technology.vercel.app/webshield.js" data-site-key="${integration.collector_key}" async></script>`
@@ -32,10 +35,10 @@ export function BackendWebsites() {
     }catch(e){setError(e instanceof Error?e.message:"Could not load websites.");}
     finally{setLoading(false);}
   }
-  useEffect(()=>{load();},[]);
+  useEffect(()=>{load();const requested=new URLSearchParams(window.location.search).get('connect');if(requested){try{setDomain(new URL(requested.includes('://')?requested:'https://'+requested).hostname)}catch{}}},[]);
 
   async function add(e:FormEvent){
-    e.preventDefault(); setError(""); setNotice("");
+    e.preventDefault(); if(adding)return;setAdding(true);setError(""); setNotice("");
     try{
       const r=await fetch("/api/websites",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({domain})});
       const b=await r.json();
@@ -44,7 +47,8 @@ export function BackendWebsites() {
       if(b?.meta?.reused) setNotice(`This page belongs to the existing website ${b.data?.domain || "domain"}. No duplicate website was created.`);
       else setNotice(`Website ${b.data?.domain || ""} added. Click Connect Website to install WebShield monitoring.`);
       await load();
-    }catch(e){setError(e instanceof Error?e.message:"Could not add website.");}
+      if(b.data?.id)await openIntegration(b.data);
+    }catch(e){setError(e instanceof Error?e.message:"Could not add website.");}finally{setAdding(false)}
   }
 
   async function openIntegration(item:Website){
@@ -100,19 +104,21 @@ export function BackendWebsites() {
   }
 
   return <>
-    <article className="panel" style={{marginBottom:16}}>
+    <article id="website-management" className="refPanel" style={{marginBottom:16}}>
       <div className="panelHead"><div><h3>Website Management</h3><p>Add a domain or any page URL. WebShield stores only the root hostname, so internal links stay under the same website.</p></div><span className="statusTag safe">DATABASE</span></div>
       <form onSubmit={add} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,marginTop:14}}>
-        <input value={domain} onChange={e=>setDomain(e.target.value)} placeholder="example.com or https://example.com/services/page" required style={{height:44,borderRadius:10,border:"1px solid rgba(120,190,225,.15)",background:"#091522",color:"#edf8ff",padding:"0 13px"}}/>
-        <button className="btn" type="submit">Add Website</button>
+        <input aria-label="Website domain to connect" value={domain} onChange={e=>setDomain(e.target.value)} placeholder="example.com or https://example.com/services/page" required style={{height:44,borderRadius:10,border:"1px solid rgba(120,190,225,.15)",background:"#091522",color:"#edf8ff",padding:"0 13px"}}/>
+        <button className="btn" type="submit" disabled={adding}>{adding?"Adding…":"Add Website"}</button>
       </form>
+      {integrationError&&!integration&&<div className="formNotice error" role="alert" style={{marginTop:12}}>{integrationError}</div>}
+      {integrationBusy&&!integration&&<p role="status">Preparing website connection…</p>}
       {error&&<div className="formNotice error" style={{marginTop:12}}>{error}</div>}
       {notice&&<div className="formNotice" style={{marginTop:12}}>{notice}</div>}
     </article>
 
-    {loading?<article className="panel"><p>Loading websites…</p></article>:items.length?<div className="websiteGrid">{items.map(w=><article className="websiteCard" key={w.id}><div className="siteIcon"><Icon name="globe"/></div><div style={{flex:1,minWidth:0}}><h3>{w.domain}</h3><p>SSL: {w.ssl_status||"UNKNOWN"}</p><span className={`statusTag ${w.integration_status==="COLLECTOR_CONNECTED"?"safe":"medium"}`}>{w.status}</span><p>Integration: <b>{w.integration_status}</b></p><small>{w.verified_at?"Ownership verified":"Connection not verified yet"}</small><div style={{marginTop:14,display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="btn small" onClick={()=>openIntegration(w)} disabled={integrationBusy}>{w.integration_status==="COLLECTOR_CONNECTED"?"Integration Details":"Connect Website"}</button><button type="button" className="ghostBtn small" onClick={()=>removeWebsite(w)} disabled={removingId===w.id} style={{borderColor:"rgba(255,110,130,.35)",color:"#ff8ea1"}}>{removingId===w.id?"Removing…":"Remove"}</button></div></div></article>)}</div>:<article className="panel"><p>No websites saved yet. Add your first domain above.</p></article>}
+    {loading?<article className="refPanel"><p>Loading websites…</p></article>:items.length?<div className="websiteGrid">{items.map(w=><article className="refPanel websiteCard" key={w.id}><div className="siteIcon"><Icon name="globe"/></div><div style={{flex:1,minWidth:0}}><h3>{w.domain}</h3><p>SSL: {w.ssl_status||"UNKNOWN"}</p><span className={`statusTag ${w.integration_status==="COLLECTOR_CONNECTED"?"safe":"medium"}`}>{w.status}</span><p>Integration: <b>{w.integration_status}</b></p><small>{w.verified_at?"Ownership verified":"Connection not verified yet"}</small><div style={{marginTop:14,display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="btn small" onClick={()=>openIntegration(w)} disabled={integrationBusy}>{w.integration_status==="COLLECTOR_CONNECTED"?"Integration Details":"Connect Website"}</button><button type="button" className="ghostBtn small" onClick={()=>removeWebsite(w)} disabled={removingId===w.id} style={{borderColor:"rgba(255,110,130,.35)",color:"#ff8ea1"}}>{removingId===w.id?"Removing…":"Remove"}</button></div></div></article>)}</div>:<article className="refPanel"><p>No websites saved yet. Add your first domain above.</p></article>}
 
-    {integration&&<article className="panel" style={{marginTop:16,borderColor:"rgba(32,217,255,.28)"}}>
+    {integration&&<article ref={integrationPanel} tabIndex={-1} aria-label={`Connect ${integration.domain}`} className="refPanel" style={{marginTop:16,borderColor:"rgba(32,217,255,.28)"}}>
       <div className="panelHead"><div><h3>Connect {integration.domain}</h3><p>Universal WebShield monitoring integration. Add this one script to the website&apos;s global layout/header.</p></div><span className={`statusTag ${integration.last_event_at?"safe":"medium"}`}>{integration.last_event_at?"EVENT RECEIVED":"INSTALL REQUIRED"}</span></div>
 
       <div className="dashboardGrid equal" style={{marginTop:14}}>

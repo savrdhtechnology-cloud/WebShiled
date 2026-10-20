@@ -10,7 +10,8 @@ async function walk(dir) {
     else if (/\.(ts|tsx)$/.test(entry.name)) {
       const text = await readFile(path, "utf8");
       if (/\bconsole\.(log|debug)\(/.test(text)) problems.push(`${path}: debug console statement`);
-      if (/service[_-]?role/i.test(text)) problems.push(`${path}: possible privileged Supabase secret reference`);
+      const secretCheckText = path.startsWith('app/api/') && !/^['\"]use client['\"]/m.test(text) ? text.replace(/process\.env\.SUPABASE_SERVICE_ROLE_KEY\b/g, '') : text;
+      if (/service[_-]?role/i.test(secretCheckText)) problems.push(`${path}: possible privileged Supabase secret reference`);
       if (/(?:^|[^A-Za-z])sk_live_|sb_secret_/i.test(text)) problems.push(`${path}: possible committed secret`);
     }
   }

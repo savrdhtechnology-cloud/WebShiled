@@ -115,6 +115,11 @@ export async function POST(request: NextRequest) {
       const projectRef = validateProjectRef(String(body.projectRef || ""));
       const token = String(body.accessToken || "").trim();
       if (token.length < 20) return reply({ code: "INVALID_TOKEN", message: "A scoped Supabase Management API token is required." }, 400);
+      if(body.websiteId){
+        const {data:website,error:websiteError}=await client.from('websites').select('id').eq('organization_id',orgId).eq('id',String(body.websiteId)).maybeSingle();
+        if(websiteError)throw websiteError;
+        if(!website)return reply({code:'WEBSITE_NOT_FOUND',message:'Select a website in your workspace.'},404);
+      }
       await verifySupabaseDatabaseAccess(projectRef, token);
 
       const payload = {
@@ -213,7 +218,7 @@ export async function POST(request: NextRequest) {
       if (!canScan(user.role)) return reply({ code: "FORBIDDEN", message: "Security role required." }, 403);
       const findingId = String(body.findingId || "");
       const { data: finding, error } = await client.from("database_findings")
-        .select("id,connection_id,fix_type,evidence,title,severity,status")
+        .select("id,connection_id,finding_key,fix_type,evidence,title,severity,status")
         .eq("organization_id", orgId).eq("id", findingId).maybeSingle();
       if (error) throw error;
       if (!finding) return reply({ code: "NOT_FOUND", message: "Finding not found." }, 404);
@@ -232,7 +237,7 @@ export async function POST(request: NextRequest) {
       if (!canManage(user.role)) return reply({ code: "FORBIDDEN", message: "Owner or admin approval is required to change a database." }, 403);
       const findingId = String(body.findingId || "");
       const { data: finding, error } = await client.from("database_findings")
-        .select("id,connection_id,fix_type,evidence,title,severity,status")
+        .select("id,connection_id,finding_key,fix_type,evidence,title,severity,status")
         .eq("organization_id", orgId).eq("id", findingId).maybeSingle();
       if (error) throw error;
       if (!finding) return reply({ code: "NOT_FOUND", message: "Finding not found." }, 404);
@@ -255,15 +260,17 @@ export async function POST(request: NextRequest) {
 
       try {
         const result = await runWriteQuery(connection.project_ref, decryptSecret(connection.encrypted_secret), sql);
+        const verification=await runSupabaseDatabaseAudit(connection.project_ref,decryptSecret(connection.encrypted_secret));
+        if(verification.findings.some(item=>item.key===finding.finding_key))throw new Error('The change was sent, but the security finding is still present. Review the database before retrying.');
         const now = new Date().toISOString();
         await client.from("remediation_jobs").update({
           status: "APPLIED",
           applied_by: user.id,
           applied_at: now,
-          result: { provider: "SUPABASE", applied: true }
+          result: { provider: "SUPABASE", applied: true, verified: true, verifiedAt: now }
         }).eq("organization_id", orgId).eq("id", job.id);
         await client.from("database_findings").update({ status: "FIXED", updated_at: now }).eq("organization_id", orgId).eq("id", finding.id);
-        return reply({ jobId: job.id, findingId: finding.id, applied: true, providerResult: result });
+        return reply({ jobId: job.id, findingId: finding.id, applied: true, verified: true, providerResult: result });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Remediation failed.";
         await client.from("remediation_jobs").update({ status: "FAILED", result: { message } }).eq("organization_id", orgId).eq("id", job.id);

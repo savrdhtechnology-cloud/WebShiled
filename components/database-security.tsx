@@ -58,9 +58,11 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
   const [notice,setNotice]=useState("");
   const [showConnect,setShowConnect]=useState(false);
   const [name,setName]=useState("Production Database");
-  const [projectRef,setProjectRef]=useState("szvxrgbshmmsvujkusdm");
+  const [projectRef,setProjectRef]=useState("");
   const [accessToken,setAccessToken]=useState("");
   const [accessMode,setAccessMode]=useState("READ_ONLY");
+  const [websites,setWebsites]=useState<{id:string;domain:string}[]>([]);
+  const [websiteId,setWebsiteId]=useState('');
   const [preview,setPreview]=useState<{findingId:string;title:string;severity:string;fixType:string;sql:string;warning:string}|null>(null);
 
   async function load(connectionId?:string){
@@ -78,7 +80,7 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
     }catch(e){setError(e instanceof Error?e.message:"Database Security could not be loaded.");}
     finally{setLoading(false);}
   }
-  useEffect(()=>{load();},[]);
+  useEffect(()=>{load();const requested=new URLSearchParams(window.location.search).get('website');if(requested)setWebsiteId(requested);let active=true;fetch('/api/websites',{cache:'no-store'}).then(r=>r.json()).then(body=>{if(active&&body.ok)setWebsites(body.data||[])}).catch(()=>{});return()=>{active=false}},[]);
 
   async function action(body:Record<string,unknown>,label:string){
     setBusy(label); setError(""); setNotice("");
@@ -94,7 +96,7 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
   async function connect(e:FormEvent){
     e.preventDefault();
     try{
-      const result=await action({action:"connect",provider:"SUPABASE",name,projectRef,accessToken,accessMode},"connect");
+      const result=await action({action:"connect",provider:"SUPABASE",name,projectRef,accessToken,accessMode,websiteId:websiteId||null},"connect");
       setAccessToken(""); setProjectRef(""); setShowConnect(false);
       setNotice("Supabase database connected. Run the first security scan to generate findings.");
       await load(result?.id);
@@ -123,7 +125,7 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
     try{
       await action({action:"apply_fix",findingId:preview.findingId},"apply");
       setPreview(null);
-      setNotice("Remediation applied. Run another database scan to verify the resulting posture.");
+      setNotice("Remediation applied and verified by a fresh database audit.");
       await load(selected);
     }catch{}
   }
@@ -158,8 +160,8 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
   const open=findings.filter(f=>f.status==="OPEN");
   const jobs=(data?.remediationJobs||[]).filter(j=>!selected||j.connection_id===selected);
 
-  if(loading)return <article className="panel"><p>Loading Database Security…</p></article>;
-  if(data?.setupRequired)return <article className="panel">
+  if(loading)return <article className="refPanel"><p>Loading Database Security…</p></article>;
+  if(data?.setupRequired)return <article className="refPanel">
     <div className="panelHead"><div><h3>Database Security activation required</h3><p>{data.message||"The Database Security schema is not active yet."}</p></div><span className="statusTag medium">SETUP REQUIRED</span></div>
     <div className="formNotice" style={{marginTop:14}}>The application code is ready, but the WebShield database must apply <code>supabase/migrations/0003_database_security.sql</code> before provider connections and scan history can be stored.</div>
   </article>;
@@ -169,7 +171,7 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
     {notice&&<div className="formNotice" style={{marginBottom:14}}>{notice}</div>}
 
     <section className="dashboardGrid equal">
-      <article className="panel">
+      <article className="refPanel">
         <div className="panelHead"><div><h3>{mode==="fixes"?"Database Fix Center":"Database Connections"}</h3><p>{mode==="fixes"?"Review and approve database remediation actions.":"Connect a Supabase project with a scoped Management API token."}</p></div><span className="statusTag safe">ENCRYPTED CREDENTIALS</span></div>
         <div className="buttonRow" style={{marginTop:14,flexWrap:"wrap"}}>
           {data?.connections?.map(c=><button key={c.id} type="button" className={c.id===selected?"btn small":"ghostBtn small"} onClick={()=>{setSelected(c.id);load(c.id)}}>{c.name}</button>)}
@@ -186,21 +188,22 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
         </div>}
       </article>
 
-      <article className="panel">
+      <article className="refPanel">
         <div className="panelHead"><div><h3>Database Security Health</h3><p>Postgres access controls and Supabase exposure posture.</p></div><span className={`statusTag ${tone(scanInfo?.overall_risk)}`}>{scanInfo?.overall_risk||"NOT SCANNED"}</span></div>
-        <div className="metricGrid compact" style={{marginTop:14}}>
-          <article className="metricCard"><div className="metricTop"><span>Security Score</span><div className="metricIcon"><Icon name="shield"/></div></div><strong>{scanInfo?.security_score??"—"}</strong><small>/100</small></article>
-          <article className="metricCard"><div className="metricTop"><span>RLS Coverage</span><div className="metricIcon"><Icon name="lock"/></div></div><strong>{metric(summary.rlsCoverage,"—")}{summary.rlsCoverage!=null?"%":""}</strong><small>{metric(summary.rlsEnabled)} / {metric(summary.tables)} tables</small></article>
-          <article className="metricCard"><div className="metricTop"><span>Open Findings</span><div className="metricIcon"><Icon name="threat"/></div></div><strong>{open.length}</strong><small>{metric(scanInfo?.finding_counts?.CRITICAL)} critical · {metric(scanInfo?.finding_counts?.HIGH)} high</small></article>
-          <article className="metricCard"><div className="metricTop"><span>Anon Writes</span><div className="metricIcon"><Icon name="firewall"/></div></div><strong>{metric(summary.anonymousWriteGrants)}</strong><small>tables with write grants</small></article>
+        <div className="refMetrics" style={{marginTop:14}}>
+          <article className="refMetric"><div className="metricTop"><span>Security Score</span><div className="metricIcon"><Icon name="shield"/></div></div><strong>{scanInfo?.security_score??"—"}</strong><small>/100</small></article>
+          <article className="refMetric"><div className="metricTop"><span>RLS Coverage</span><div className="metricIcon"><Icon name="lock"/></div></div><strong>{metric(summary.rlsCoverage,"—")}{summary.rlsCoverage!=null?"%":""}</strong><small>{metric(summary.rlsEnabled)} / {metric(summary.tables)} tables</small></article>
+          <article className="refMetric"><div className="metricTop"><span>Open Findings</span><div className="metricIcon"><Icon name="threat"/></div></div><strong>{open.length}</strong><small>{metric(scanInfo?.finding_counts?.CRITICAL)} critical · {metric(scanInfo?.finding_counts?.HIGH)} high</small></article>
+          <article className="refMetric"><div className="metricTop"><span>Anon Writes</span><div className="metricIcon"><Icon name="firewall"/></div></div><strong>{metric(summary.anonymousWriteGrants)}</strong><small>tables with write grants</small></article>
         </div>
         {!scanInfo&&<div className="cleanState compact"><span><Icon name="shield" size={18}/></span><b>Run the first audit</b><p>WebShield will check RLS, policies, grants, privileged functions and public storage posture.</p></div>}
       </article>
     </section>
 
-    {showConnect&&<article className="panel" style={{marginTop:16,borderColor:"rgba(32,217,255,.28)"}}>
+    {showConnect&&<article className="refPanel" style={{marginTop:16,borderColor:"rgba(32,217,255,.28)"}}>
       <div className="panelHead"><div><h3>Connect Supabase Database</h3><p>Use a scoped Management API token with Database Read permission. Choose Remediation only when you intentionally grant Database Write permission.</p></div><span className="statusTag medium">SUPABASE</span></div>
       <form onSubmit={connect} className="settingsGrid" style={{marginTop:14}}>
+        <label>Customer website<select value={websiteId} onChange={e=>setWebsiteId(e.target.value)}><option value="">Workspace database</option>{websites.map(site=><option key={site.id} value={site.id}>{site.domain}</option>)}</select></label>
         <label>Connection name<input value={name} onChange={e=>setName(e.target.value)} required/></label>
         <label>Project ref<input value={projectRef} onChange={e=>setProjectRef(e.target.value)} placeholder="abcdefghijklmnopqrst" required/></label>
         <label>Access mode<select value={accessMode} onChange={e=>setAccessMode(e.target.value)}><option value="READ_ONLY">Read-only audit</option><option value="REMEDIATION">Audit + approved remediation</option></select></label>
@@ -210,7 +213,7 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
       </form>
     </article>}
 
-    <article className="panel" style={{marginTop:16}}>
+    <article className="refPanel" style={{marginTop:16}}>
       <div className="panelHead"><div><h3>{mode==="fixes"?"Approved Remediation Queue":"Security Findings"}</h3><p>{mode==="fixes"?"Only findings with supported controlled fixes are shown.":"Evidence-based database security findings from the latest audit."}</p></div><span className="statusTag medium">{findings.length} FINDINGS</span></div>
       <div style={{display:"grid",gap:10,marginTop:14}}>
         {findings.length?findings.map(f=><article key={f.id} style={{border:"1px solid rgba(120,190,225,.11)",borderRadius:12,padding:14,background:"rgba(5,13,22,.28)"}}>
@@ -228,7 +231,7 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
       </div>
     </article>
 
-    {preview&&<article className="panel" style={{marginTop:16,borderColor:"rgba(255,177,74,.28)"}}>
+    {preview&&<article className="refPanel" style={{marginTop:16,borderColor:"rgba(255,177,74,.28)"}}>
       <div className="panelHead"><div><h3>Review Database Fix</h3><p>{preview.title}</p></div><span className={`statusTag ${tone(preview.severity)}`}>{preview.severity}</span></div>
       <div className="formNotice" style={{marginTop:12}}>{preview.warning}</div>
       <label style={{display:"grid",gap:7,marginTop:13,fontSize:11,color:"#9db2c2"}}>Proposed SQL
@@ -238,7 +241,7 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
       {connection?.access_mode!=="REMEDIATION"&&<div className="formNotice" style={{marginTop:10}}>This connection is read-only. Reconnect with Remediation access before applying changes.</div>}
     </article>}
 
-    <article className="panel" style={{marginTop:16}}>
+    <article className="refPanel" style={{marginTop:16}}>
       <div className="panelHead"><div><h3>Remediation History</h3><p>Approved database changes and their execution status.</p></div><span className="statusTag safe">AUDITABLE</span></div>
       <div style={{display:"grid",marginTop:10}}>
         {jobs.length?jobs.slice(0,12).map(j=><div className="eventRow" key={j.id}><span className={`activityAlert ${j.status==="FAILED"?"high":"safe"}`}><Icon name={j.status==="FAILED"?"threat":"check"} size={14}/></span><div><b>{j.action_type}</b><small>{j.status} · {ago(j.applied_at||j.approved_at||j.created_at)}</small></div><span className={`statusTag ${j.status==="FAILED"?"high":"safe"}`}>{j.status}</span></div>):<div className="cockpitEmpty">No remediation jobs yet.</div>}

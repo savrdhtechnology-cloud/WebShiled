@@ -1,7 +1,9 @@
 import Link from "next/link";
+import {NotificationBell} from "./notification-bell";
+import {WebsiteMonitoring} from "./website-monitoring";
 import { logoutAction } from "@/app/actions";
 import { Icon } from "@/components/icons";
-import { Logo } from "@/components/logo";
+import { AppearanceProvider } from "@/components/appearance-studio";
 import type { AppUser } from "@/lib/types";
 
 function navIcon(slug: string) {
@@ -26,32 +28,20 @@ export function AppShell({
   area: "app" | "admin";
 }) {
   const base = area === "admin" ? "/admin" : "/app";
-  return (
-    <div className="appShell">
-      <input id="mobile-nav" className="navToggleInput" type="checkbox" />
-      <aside className="sidebar">
-        <div className="sidebarHead"><Logo /><label className="mobileClose" htmlFor="mobile-nav">×</label></div>
-        <div className="workspaceSelect"><span className="workspaceLogo">S</span><span><small>Workspace</small><strong>{area === "admin" ? "WebShield Admin" : "Savrdh Technologies"}</strong></span><Icon name="chevron" size={14}/></div>
-        <nav className="sideNav" aria-label={`${area} navigation`}>
-          {area === "admin" && <small className="navLabel">PLATFORM CONTROL</small>}
-          {nav.map(([slug,label])=>{
-            if (slug.startsWith("#")) return <small className="navLabel" key={slug}>{label}</small>;
-            return <Link key={slug} href={`${base}/${slug}`}><Icon name={navIcon(slug)} size={17}/><span>{label}</span></Link>;
-          })}
-        </nav>
-        <div className="sidebarFoot">
-          {user.demo && <div className="demoPanel"><span className="demoBadge">DEMO MODE</span><p>Simulated telemetry only. Passive scanner is live; no live WAF enforcement.</p></div>}
-          <form action={logoutAction}><button type="submit" className="userChip"><span>{user.name.slice(0,2).toUpperCase()}</span><b>{user.name}<small>{user.role.replaceAll("_"," ")}</small></b><Icon name="logout" size={17}/></button></form>
-        </div>
-      </aside>
-      <label className="sidebarBackdrop" htmlFor="mobile-nav"/>
-      <section className="appMain">
-        <header className="topbar">
-          <div className="topbarLeft"><label htmlFor="mobile-nav" className="mobileMenu"><Icon name="menu"/></label><span className="statusPill safe"><i/> Systems operational</span><span className="topSep"/><span className="topSite"><Icon name="globe" size={15}/>{area === "admin" ? "Platform overview" : "savrdhtechnology.com"}</span></div>
-          <div className="topbarRight"><button className="iconButton" aria-label="Search"><Icon name="search"/></button><button className="iconButton alertDot" aria-label="Notifications"><Icon name="bell"/></button>{area === "app" && (["OWNER","ADMIN"].includes(user.role)) && <Link href="/admin/dashboard" className="adminSwitch">Admin</Link>}</div>
-        </header>
-        {children}
-      </section>
-    </div>
-  );
+  return <AppearanceProvider><div className="referenceApp adminReferenceApp">
+    <input id="mobile-nav" className="navToggleInput" type="checkbox" />
+    <aside className="refSidebar">
+      <Link href={`${base}/dashboard`} className="refBrand"><b>W</b><span><strong>WebShield</strong><small>SAVRDH TECHNOLOGIES</small></span></Link>
+      <nav aria-label={`${area} navigation`}>
+        <p className="refNavLabel">{area === "admin" ? "PLATFORM CONTROL" : "WORKSPACE"}</p>
+        {nav.map(([slug,label])=>slug.startsWith("#")?<p className="refNavLabel" key={slug}>{label}</p>:<Link key={slug} href={`${base}/${slug}`}><Icon name={navIcon(slug)} size={23}/><span>{label}</span></Link>)}
+      </nav>
+      <div className="refEnterprise"><Icon name="shield" size={30}/><div>Enterprise Security<small>Web & Database Protection</small></div></div>
+    </aside>
+    <label className="sidebarBackdrop" htmlFor="mobile-nav"/>
+    <section className="refMain">
+      <header className="refTopbar"><label htmlFor="mobile-nav" className="refMobileButton" aria-label="Toggle navigation"><Icon name="menu"/></label><span className="refOperational">● Systems operational</span><NotificationBell/><Link href="/demo/dashboard">Design dashboard</Link><Link href="/app/dashboard">Connected workspace</Link><form action={logoutAction}><button type="submit" className="refProfile"><b>{user.name.slice(0,2).toUpperCase()}</b><span>{user.name}<small>{user.role.replaceAll("_"," ")}</small></span><Icon name="logout" size={17}/></button></form></header>
+      <main className="refContent"><WebsiteMonitoring/>{children}</main>
+    </section>
+  </div></AppearanceProvider>;
 }

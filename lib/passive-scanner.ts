@@ -208,7 +208,7 @@ export async function runPassiveScan(value: unknown) {
   }
 
   if (hsts && !/max-age=(\d+)/i.test(hsts)) add(findings, "LOW", "Transport", "HSTS max-age could not be confirmed", "HSTS exists but a max-age value was not recognized.", "Browsers may not retain strict HTTPS enforcement as intended.", "Set a valid Strict-Transport-Security max-age value after confirming HTTPS readiness.");
-  if (cors === "*") add(findings, "MEDIUM", "Cross-Origin", "CORS allows every origin", "Access-Control-Allow-Origin is set to *.", "Cross-origin access may be broader than intended for sensitive responses.", "Restrict CORS to known origins for endpoints that return private or user-specific data.");
+  if (cors === "*") add(findings, "INFO", "Cross-Origin", "Public cross-origin access observed", "Access-Control-Allow-Origin is set to * on the scanned response.", "This is common for public pages and assets; a passive check does not establish that private data is exposed.", "Review authenticated and private API responses separately. Restrict their CORS origins when required; public resources may intentionally allow all origins.");
 
   if (poweredBy) add(findings, "LOW", "Information Exposure", "Technology header exposed", `X-Powered-By reports ${poweredBy}.`, "Technology disclosure can improve attacker reconnaissance.", "Remove unnecessary X-Powered-By headers where possible.");
   if (server) add(findings, "INFO", "Information Exposure", "Server header visible", `Server reports ${server}.`, "This is mainly reconnaissance information unless a precise vulnerable version is exposed.", "Reduce unnecessary server/version disclosure when your platform permits it.");

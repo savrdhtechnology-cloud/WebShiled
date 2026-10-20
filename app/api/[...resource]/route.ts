@@ -58,13 +58,13 @@ export async function GET(_: NextRequest, context: { params: Promise<{ resource:
         countRows(client, "alerts", orgId, q => q.is("acknowledged_at", null)),
         client.from("threat_events").select("id,type,severity,source_ip,target_url,risk_score,status,action_taken,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(12),
         client.from("alerts").select("id,type,severity,title,message,acknowledged_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(8),
-        client.from("websites").select("id,domain,status,verified_at,ssl_status,integration_status,last_event_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: true }).limit(20),
+        client.from("websites").select("id,domain,status,verified_at,ssl_status,integration_status,last_event_at,last_scan,security_score,overall_risk,created_at").eq("organization_id", orgId).order("created_at", { ascending: true }).limit(20),
         client.from("visitors").select("id,website_id,ip_address,country,city,device,browser,operating_system,referrer,first_seen_at,last_seen_at").eq("organization_id", orgId).order("last_seen_at", { ascending: false }).limit(1000),
         client.from("visitor_sessions").select("id,website_id,visitor_id,requested_url,status,risk_score,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(5000)
       ]);
       for (const result of [threatRows,alertRows,websiteRows,visitorRows,sessionRows]) { if(result.error) throw result.error; }
       return json({
-        metrics: { websites, visitors, activeVisitors, threats, blockedRequests: blocked, openAlerts: alertsCount },
+        metrics: { websites, visitors, activeVisitors, threats, blockedRequests: blocked, openAlerts: alertsCount+(websiteRows.data||[]).filter((site:any)=>!site.last_scan?.monitorAcknowledgedAt&&site.last_scan?.findings?.some((f:any)=>f.severity!=='INFO')).length },
         threats: threatRows.data || [],
         alerts: alertRows.data || [],
         websitesData: websiteRows.data || [],
@@ -116,7 +116,10 @@ export async function GET(_: NextRequest, context: { params: Promise<{ resource:
     if (key === "alerts") {
       const { data, error } = await client.from("alerts").select("id,website_id,type,severity,title,message,acknowledged_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
       if (error) throw error;
-      return json(data || []);
+      const monitored=await client.from('websites').select('id,domain,last_scan,overall_risk,last_scan_at').eq('organization_id',orgId);
+      if(monitored.error)throw monitored.error;
+      const websiteAlerts=(monitored.data||[]).flatMap(site=>{const findings=(site.last_scan?.findings||[]).filter((f:{severity:string})=>f.severity!=='INFO');return findings.length?[{id:'website:'+site.id,website_id:site.id,type:'WEBSITE_POSTURE',severity:site.overall_risk,title:site.domain+': '+findings.length+' security findings',message:findings.map((f:{title:string})=>f.title).join('; '),acknowledged_at:site.last_scan?.monitorAcknowledgedAt||null,created_at:site.last_scan_at}]:[]});
+      return json([...websiteAlerts,...(data||[])]);
     }
 
     if (key === "billing") {
@@ -137,7 +140,7 @@ export async function GET(_: NextRequest, context: { params: Promise<{ resource:
         countRows(client, "threat_events", orgId),
         countRows(client, "alerts", orgId, q => q.is("acknowledged_at", null)),
         countRows(client, "support_tickets", orgId, q => q.neq("status", "RESOLVED")),
-        client.from("websites").select("id,domain,status,verified_at,ssl_status,integration_status,last_event_at,created_at,updated_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(50),
+        client.from("websites").select("id,domain,status,verified_at,ssl_status,integration_status,last_event_at,last_scan,security_score,overall_risk,created_at,updated_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(50),
         client.from("threat_events").select("id,website_id,type,severity,source_ip,target_url,risk_score,status,action_taken,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(12),
         client.from("alerts").select("id,website_id,type,severity,title,message,acknowledged_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(12),
         countRows(client, "visitors", orgId),
@@ -202,6 +205,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
     }
 
     if (key === "alerts" && body.id) {
+      if(String(body.id).startsWith('website:')){
+        if(!['OWNER','ADMIN','SECURITY_ANALYST'].includes(user.role))return json({message:'Security role required'},403);
+        const id=String(body.id).slice(8);const existing=await client.from('websites').select('last_scan').eq('organization_id',orgId).eq('id',id).single();if(existing.error)throw existing.error;
+        const result=await client.from('websites').update({last_scan:{...existing.data.last_scan,monitorAcknowledgedAt:new Date().toISOString()}}).eq('organization_id',orgId).eq('id',id).select('id').single();if(result.error)throw result.error;return json({acknowledged:true});
+      }
       const { data, error } = await client.from("alerts").update({ acknowledged_at: new Date().toISOString() }).eq("organization_id", orgId).eq("id", body.id).select("*").single();
       if (error) throw error;
       return json(data);
