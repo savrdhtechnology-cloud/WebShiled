@@ -1,4 +1,5 @@
 "use client";
+import { apiPath } from "@/lib/base-path";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -31,7 +32,7 @@ export function PublicScanner() {
     e.preventDefault();
     setLoading(true); setError(""); setScan(null);
     try {
-      const res = await fetch("/api/public-scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) });
+      const res = await fetch(apiPath("/api/public-scan"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "Scan failed");
       setScan(data.scan);
