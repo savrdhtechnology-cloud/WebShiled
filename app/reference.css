@@ -4,3 +4,31 @@
 @media(max-width:1000px){.refMetrics{grid-template-columns:repeat(2,1fr)}.refColumns{grid-template-columns:1fr}.refColumns>.refStack{grid-template-columns:1fr 1fr}.refColumns>.refStack>.refPanel:only-child{grid-column:1/-1}.refMetric p{font-size:10px}.refHero>p{font-size:12px}.refRisk{min-height:200px}.refProfile span,.refProfile>svg{display:none}.refHero h1{font-size:34px}}
 @media(max-width:760px){.refSidebar{transform:translateX(-100%);transition:transform .2s;width:245px;top:60px}.refMenuOpen .refSidebar{transform:translateX(0);box-shadow:30px 0 100px #000b}.refMain{margin-left:0}.refTopbar{height:60px;padding:0 12px;gap:10px}.referenceApp .refMobileButton{display:block;padding:7px}.refOperational{font-size:9px;padding:7px}.refSearch{width:auto;flex:1}.refSearch input{font-size:10px}.refProfile{display:none!important}.refContent{padding:20px 14px}.refHero h1{font-size:32px}.refHero>p br{display:none}.refDemo{flex-wrap:wrap;line-height:1.6}.refDemo a{margin-left:0}.refActions{gap:7px;flex-wrap:wrap}.refActions button,.refActions a{min-width:0;font-size:10px;flex:1;padding:11px}.refMetric{min-height:110px}.refMetric strong{font-size:25px}.refMetricIcon{width:35px;height:35px}.refMetricIcon svg{width:22px}.refMetric p{font-size:8px}.refBottom,.refEqual,.refColumns>.refStack,.refBottom>.refStack{grid-template-columns:1fr}.refBottom>.refStack{grid-column:auto}.refScan{flex-wrap:wrap}.refScan input{width:80%}.refScan button{flex:1;font-size:10px;padding:10px}.refHero{min-height:120px}.refRisk{justify-content:center}.refRisk>div:last-child{max-width:230px}.refFooter{line-height:1.7;gap:15px}.refFooter span{text-align:right}.refPanel{padding:13px}.refPanel h2{font-size:14px}.refChart{padding-left:26px}.refLegend{gap:10px;font-size:8px}.refTimes{font-size:8px}}
 @media(prefers-reduced-motion:reduce){.referenceApp *{scroll-behavior:auto;transition:none}}
+
+.refScanModal{max-width:900px;max-height:min(88vh,900px);overflow:auto}
+.connectWizard{display:grid;gap:20px}
+.connectWizardSteps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4px 0 8px}
+.connectWizardSteps>div{display:flex;align-items:center;gap:9px;border:1px solid #123d55;border-radius:8px;padding:10px;color:#789fbb;background:#001723}
+.connectWizardSteps>div b{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;border:1px solid #315870;font-size:10px}
+.connectWizardSteps>div span{font-size:10px}
+.connectWizardSteps>div.active{color:#cdeaff;border-color:#155b77}
+.connectWizardSteps>div.active b{color:#001821;background:#00d8ee;border-color:#00d8ee}
+.connectWizardSteps>div.current{box-shadow:inset 0 0 18px #00cfff12;border-color:#00bfe8}
+.connectWizardBody{display:grid;gap:16px}
+.connectWizardIntro{display:flex;align-items:flex-start;gap:14px;padding:14px;border:1px solid #12415b;border-radius:10px;background:#001927}
+.connectWizardIntro>svg{color:#00d7ff;flex:0 0 auto}
+.connectWizardIntro h3,.connectWizardSuccess h3{margin:0 0 5px;font-size:17px}
+.connectWizardIntro p,.connectWizardSuccess p{margin:0;color:#8eb4cf;font-size:11px;line-height:1.5}
+.connectWizardBody label{display:grid;gap:9px;font-size:11px;color:#b8d4e7}
+.connectWizardBody input,.connectWizardBody select,.connectWizardBody textarea{width:100%;border:1px solid #1a5875;border-radius:8px;background:#001624;color:#d8efff;padding:12px;font:inherit}
+.connectWizardBody textarea{min-height:145px;resize:vertical;line-height:1.55;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+.connectWizardSuccess{display:flex;align-items:center;gap:15px;padding:18px;border:1px solid #00785d;border-radius:10px;background:#00342955}
+.connectWizardSuccess>b{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#00e2a7;color:#001b1a;font-size:22px}
+.connectWizardStatus{margin:0!important;padding:11px 13px;border:1px solid #14516b;border-radius:8px;background:#002034;color:#a9d7ef!important}
+.connectWizard .moduleDetail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.connectWizard .moduleDetail p{margin:0;padding:10px;border:1px solid #123c53;border-radius:7px;background:#001723;font-size:10px!important}
+@media(max-width:760px){
+ .refScanModal{max-width:100%;padding:20px}
+ .connectWizardSteps{grid-template-columns:repeat(2,1fr)}
+ .connectWizard .moduleDetail{grid-template-columns:1fr}
+}
