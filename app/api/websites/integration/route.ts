@@ -31,7 +31,34 @@ export async function GET(request: NextRequest) {
   if (!id) return out({ message: "Website id is required." }, 400);
   const resolved = await siteForUser(id);
   if (resolved.error) return resolved.error;
-  return out(resolved.site);
+  const { site, client } = resolved;
+  const recentSince = new Date(Date.now() - 24 * 3600_000).toISOString();
+  const [sessions, visitors] = await Promise.all([
+    client.from("visitor_sessions").select("*", { count: "exact", head: true })
+      .eq("organization_id", resolved.user.organizationId).eq("website_id", site.id).gte("occurred_at", recentSince),
+    client.from("visitors").select("*", { count: "exact", head: true })
+      .eq("organization_id", resolved.user.organizationId).eq("website_id", site.id).gte("last_seen_at", recentSince)
+  ]);
+  if (sessions.error || visitors.error) return out({ message: sessions.error?.message || visitors.error?.message || "Telemetry unavailable." }, 500);
+  const lastEvent = site.last_event_at ? new Date(site.last_event_at).getTime() : 0;
+  const connectionState = !site.collector_enabled ? "DISABLED"
+    : !lastEvent ? "AWAITING_FIRST_EVENT"
+    : Date.now() - lastEvent > 30 * 60_000 ? "INACTIVE"
+    : "RECEIVING_EVENTS";
+  return out({
+    ...site,
+    diagnostics: {
+      connectionState,
+      eventsReceivedLast24h: sessions.count || 0,
+      visitorsSeenLast24h: visitors.count || 0,
+      lastEventAt: site.last_event_at,
+      measurement: "Browser collector page views and SPA navigation; not all server requests",
+      nextAction: connectionState === "DISABLED" ? "Enable collector"
+        : connectionState === "AWAITING_FIRST_EVENT" ? "Install the website snippet and open a page"
+        : connectionState === "INACTIVE" ? "Check that the snippet still loads and the network allows collection"
+        : "Events are arriving"
+    }
+  });
 }
 
 export async function POST(request: NextRequest) {
