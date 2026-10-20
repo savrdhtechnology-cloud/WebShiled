@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BackendResource } from "@/components/backend-resource";
-import { BackendWebsites } from "@/components/backend-websites";
+import { ConnectedWebsites } from "@/components/connected-websites";
 import { DatabaseSecurity } from "@/components/database-security";
 import { LiveTrafficIntelligencePage, PreIntegrationIntelligence } from "@/components/pre-integration-intelligence";
 
@@ -33,7 +33,7 @@ export function ClientModule({slug}:{slug:string}){
 }
 
 export function AdminModule({slug}:{slug:string}){
-  if(slug==="websites") return <div className="pageWrap"><div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> Administration</div><h1>Website Security Management</h1><p>Add, connect, verify and remove websites from the current WebShield workspace.</p></div><span className="statusTag safe">LIVE WEBSITE CONTROL</span></div><BackendWebsites/></div>;
+  if(slug==="websites") return <ConnectedWebsites/>;
   if(slug==="database-security") return <DatabasePage admin/>;
   if(slug==="fix-center") return <DatabasePage admin fixes/>;
   if(slug==="security-events") return <BackendResource resource="threats" title="Security Events" description="Threat and security events available to the current workspace."/>;
