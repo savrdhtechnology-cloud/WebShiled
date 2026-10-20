@@ -15,9 +15,13 @@ function text(formData: FormData, key: string) {
   return String(formData.get(key) || "").trim();
 }
 
+function raw(formData: FormData, key: string) {
+  return String(formData.get(key) || "");
+}
+
 export async function loginAction(formData: FormData) {
   const email = text(formData, "email").toLowerCase();
-  const password = text(formData, "password");
+  const password = raw(formData, "password");
   const next = text(formData, "next") || "/app/dashboard";
   if (!email || password.length < 8) redirect("/login?error=invalid");
 
