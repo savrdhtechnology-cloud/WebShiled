@@ -12,3 +12,20 @@
 @media(max-width:1100px){.metricGrid{grid-template-columns:repeat(3,1fr)}.featureGrid,.innerGrid{grid-template-columns:repeat(2,1fr)}.pricingGrid{grid-template-columns:repeat(2,1fr)}.websiteGrid,.reportGrid{grid-template-columns:repeat(2,1fr)}.steps{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:820px){.publicNav nav{display:none}.hero{padding-top:75px}.hero h1{letter-spacing:-3px}.previewGrid{grid-template-columns:1fr}.previewGrid aside{display:none}.split,.securityStrip>.container,.dashboardGrid.twoThirds,.dashboardGrid.equal,.authPage{grid-template-columns:1fr}.authVisual{display:none}.mobileAuthLogo{display:block;margin-bottom:35px}.sidebar{transform:translateX(-100%);transition:.2s}.navToggleInput:checked~.sidebar{transform:translateX(0)}.navToggleInput:checked~.sidebarBackdrop{display:block;position:fixed;z-index:15;inset:0;background:rgba(0,0,0,.55)}.mobileClose,.mobileMenu{display:inline-flex}.mobileClose{margin-left:auto;font-size:25px}.appMain{margin-left:0}.topbar{padding:0 16px}.pageWrap{padding:20px}.topSite,.topSep{display:none}.metricGrid,.metricGrid.compact{grid-template-columns:repeat(2,1fr)}.pageHeader{flex-direction:column}.steps{grid-template-columns:1fr 1fr}.endpointGrid{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.container{width:min(100% - 24px,1180px)}.hero{padding:60px 0}.hero h1{font-size:50px}.hero>p{font-size:14px}.heroActions{flex-direction:column}.heroActions a{width:100%}.previewBody{padding:18px}.previewStats{grid-template-columns:1fr 1fr}.featureGrid,.innerGrid,.pricingGrid,.websiteGrid,.reportGrid,.faqGrid,.securityChecks,.metricGrid,.metricGrid.compact,.settingsGrid,.endpointGrid{grid-template-columns:1fr}.section{padding:70px 0}.cta>.container,.footer{flex-direction:column;justify-content:center;gap:12px;text-align:center}.authPanel{padding:20px}.authCard h2{font-size:32px}.pageWrap{padding:15px}.panel{padding:14px}.steps{grid-template-columns:1fr}.toolbar{align-items:stretch}.searchBox{min-width:100%}.filterBtn{flex:1}.topbarLeft .statusPill{font-size:7px}.headerActions{flex-wrap:wrap}.reportCard{align-items:flex-start;flex-direction:column}}
+
+/* Secure animated WebShield login */
+.authPage{position:relative;isolation:isolate;overflow:hidden;background:radial-gradient(circle at 16% 18%,rgba(32,217,255,.1),transparent 28%),radial-gradient(circle at 84% 78%,rgba(67,140,255,.1),transparent 30%),#050914}
+.authPage:before{content:"";position:fixed;z-index:0;inset:-25%;pointer-events:none;background-image:linear-gradient(rgba(70,158,205,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(70,158,205,.055) 1px,transparent 1px);background-size:52px 52px;animation:authGridMove 20s linear infinite}
+.authPage:after{content:"";position:fixed;z-index:1;left:0;right:0;height:1px;top:8%;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(32,217,255,.48),transparent);box-shadow:0 0 24px rgba(32,217,255,.3);animation:authScanMove 8s ease-in-out infinite}
+.authPage>.authVisual,.authPage>.authPanel{position:relative;z-index:2}
+.authVisual{background:radial-gradient(circle at 28% 42%,rgba(32,217,255,.13),transparent 35%),linear-gradient(145deg,rgba(6,16,27,.94),rgba(5,13,23,.88))}
+.authPanel{background:linear-gradient(145deg,rgba(5,11,20,.7),rgba(7,16,27,.9));backdrop-filter:blur(12px)}
+.authCard{position:relative;padding:28px;border:1px solid rgba(120,190,225,.14);border-radius:20px;background:linear-gradient(160deg,rgba(12,27,42,.74),rgba(6,15,25,.8));box-shadow:0 35px 90px rgba(0,0,0,.4),0 0 50px rgba(32,217,255,.05)}
+.authFeature{transition:.25s;backdrop-filter:blur(8px)}
+.authFeature:hover{transform:translateX(5px);border-color:rgba(32,217,255,.3)}
+.authForm input{transition:.2s;background:rgba(7,18,30,.9)}
+.authForm input:focus{box-shadow:0 0 0 3px rgba(32,217,255,.06),0 0 28px rgba(32,217,255,.05)}
+.demoLogin{display:none!important}
+@keyframes authGridMove{from{background-position:0 0,0 0}to{background-position:0 52px,52px 0}}
+@keyframes authScanMove{0%,100%{top:8%;opacity:0}12%,78%{opacity:1}88%{top:90%;opacity:0}}
+@media(prefers-reduced-motion:reduce){.authPage:before,.authPage:after{animation:none!important}}
