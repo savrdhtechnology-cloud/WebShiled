@@ -11,5 +11,12 @@ export default async function AdminPage({ params }: { params: Promise<{ slug: st
   const { slug } = await params;
   if (!supported.includes(slug as (typeof supported)[number])) notFound();
   const user = await requireAdmin();
-  return <ReferenceConsole page={slug} connected area="admin" account={{ name: user.name, role: user.role }} />;
+  return (
+    <ReferenceConsole
+      page={slug}
+      account={{ name: user.name, role: user.role }}
+      baseOverride="/admin"
+      appearanceScope="admin"
+    />
+  );
 }
