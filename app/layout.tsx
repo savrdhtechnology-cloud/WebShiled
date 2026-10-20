@@ -1,3 +1,7 @@
+import "./scanner.css";
+import "./traffic.css";
+import "./appearance.css";
+import "./reference.css";
 import type { Metadata } from "next";
 import "./globals.css";
 

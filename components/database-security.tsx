@@ -58,7 +58,7 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
   const [notice,setNotice]=useState("");
   const [showConnect,setShowConnect]=useState(false);
   const [name,setName]=useState("Production Database");
-  const [projectRef,setProjectRef]=useState("");
+  const [projectRef,setProjectRef]=useState("szvxrgbshmmsvujkusdm");
   const [accessToken,setAccessToken]=useState("");
   const [accessMode,setAccessMode]=useState("READ_ONLY");
   const [preview,setPreview]=useState<{findingId:string;title:string;severity:string;fixType:string;sql:string;warning:string}|null>(null);

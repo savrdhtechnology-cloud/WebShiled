@@ -89,3 +89,54 @@ export function AdminModule({ slug }: { slug: string }) {
   if (slug === "system-settings") return <div className="pageWrap"><Settings/></div>;
   return <div className="pageWrap"><GenericAdmin slug={slug}/></div>;
 }
+
+## Reference dashboard preview
+
+Run `npm install` and `npm run dev`, then visit `/demo` for the responsive
+Next.js reference interface. Dedicated screens: `/demo/websites`,
+`/demo/database-security`, and `/demo/live-traffic`.
+
+The preview uses labelled sample telemetry. Website additions and finding
+reviews are session-local; they do not modify the backend. Search, pending-site
+filtering, dialogs, and mobile navigation are interactive. Real scan,
+database, and authenticated monitoring workflows remain under `/app`.
+
+### Appearance Studio
+
+Open `/demo/appearance` or use the floating Appearance Studio button on any
+preview page. Four presets and individual controls adjust background, accent,
+animation speed/intensity, glow, hover/click feedback, card opacity/radius and
+density. Preferences persist locally in `webshield:appearance:v1`; reset restores
+the defaults. This customisation applies to the demo interface, not `/app`.
+Device reduced-motion preferences override animated effects. Background layers
+ignore pointer input, and the studio drawer supports Escape and focus trapping.
+
+### Connected modules and animated telemetry
+
+The authenticated `/app` workspace uses the same responsive shell and Appearance
+Studio as `/demo`. Dashboard and Live Traffic poll the tenant-scoped dashboard
+API every 15 seconds, with pause/resume, time-window filtering, interactive
+charts, country selection, map zoom, visitor details and CSV export. The UI shows
+an explicit empty state until real collector records arrive. Current detail
+queries are capped at 1,000 visitors and 5,000 recent sessions; aggregate totals
+are queried separately. Map markers use country-centre approximations for known
+countries, not precise visitor coordinates.
+
+Websites use existing add/connect/verify/remove APIs; database security and Fix
+Center retain the existing audit and approval workflow. Threats support reviewed
+status changes, alerts can be acknowledged, support tickets can be created and
+resolved, and reports export CSV. Writes require an authenticated workspace and
+existing RLS permissions. Status updates require OWNER, ADMIN or SECURITY_ANALYST.
+The demo counterparts operate only on explicitly labelled session-local samples.
+A public passive scan is available from the demo scan dialog.
+
+World map coastlines: Natural Earth public-domain data, distributed by
+[world-atlas](https://github.com/topojson/world-atlas), bundled as
+`public/world-land.svg`. No external map API or paid key is needed.
+
+Local database-provider credentials use a generated, ignored `.env.local`
+encryption key. Keep that key stable to decrypt saved provider tokens. Advanced
+RLS audits require an explicit scoped Management API token in Database Security;
+regular Supabase authentication and publishable API keys do not grant schema
+introspection or remediation privileges. No new provider token is created by
+this implementation.

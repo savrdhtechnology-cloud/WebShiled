@@ -22,7 +22,7 @@ export default function HomePage() {
         <nav aria-label="Primary navigation">
           <a href="#scan">Scan</a><a href="#features">Features</a><a href="#how">How it works</a><a href="#pricing">Pricing</a><a href="#security">Security</a>
         </nav>
-        <div className="navActions"><Link className="linkBtn" href="/login">Login</Link><Link className="btn small" href="/register">Get Started</Link></div>
+        <div className="navActions"><Link className="linkBtn" href="/demo">Live Demo</Link><Link className="linkBtn" href="/login">Login</Link><Link className="btn small" href="/register">Get Started</Link></div>
       </header>
 
       <section className="hero container">

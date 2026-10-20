@@ -8,12 +8,12 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "node scripts/lint.mjs",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-telemetry.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.116.0",
-    "next": "16.3.4",
+    "next": "16.3.8",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -23,5 +23,7 @@
     "@types/react-dom": "19.2.7",
     "typescript": "5.8.3"
   },
-  "engines": { "node": ">=22.0.0" }
+  "engines": {
+    "node": ">=22.0.0"
+  }
 }

@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
 type ScanFinding = { severity: Severity; category: string; title: string; detail: string; impact: string; fix: string };
-type ScanResult = {
+export type ScanResult = {
   requestedUrl: string;
   finalUrl: string;
   hostname: string;
@@ -27,6 +27,9 @@ type ScanResult = {
   dns: { resolved: boolean; addresses: { address: string; family: number }[] };
   technologies: { signal: string; value: string }[];
   resources: { securityTxt: { exists: boolean; status: number; finalUrl: string | null }; robotsTxt: { exists: boolean; status: number; finalUrl: string | null } };
+  emailSecurity?: {spf:{present:boolean;record:string|null};dmarc:{present:boolean;record:string|null}};
+  mixedContent?:boolean;
+  httpProbe?:{status:number;redirectsToHttps:boolean;finalUrl:string|null};
   capabilities: Record<string, string>;
   scannedAt: string;
   mode: string;
@@ -54,26 +57,36 @@ function capabilityLabel(key: string) {
   } as Record<string, string>)[key] || key;
 }
 
-export function WebsiteScanner() {
-  const [url, setUrl] = useState("");
-  const [scan, setScan] = useState<ScanResult | null>(null);
+export function WebsiteScanner({publicScan=false,initialUrl="",autoScan=false,initialScan}:{publicScan?:boolean;initialUrl?:string;autoScan?:boolean;initialScan?:ScanResult}) {
+  const [url, setUrl] = useState(initialUrl||initialScan?.requestedUrl||"");
+  const [scan, setScan] = useState<ScanResult | null>(initialScan||null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [tab,setTab]=useState('findings');
+  const [severity,setSeverity]=useState('ALL');
+  const formRef=useRef<HTMLFormElement>(null);
+  const resultsRef=useRef<HTMLDivElement>(null);
+  const started=useRef(false);
+  useEffect(()=>{if(autoScan&&initialUrl.trim()&&!started.current){started.current=true;formRef.current?.requestSubmit()}},[autoScan,initialUrl]);
+  useEffect(()=>{if(scan){resultsRef.current?.scrollIntoView({block:'start',behavior:'auto'});resultsRef.current?.focus({preventScroll:true})}},[scan]);
+  function download(){if(!scan)return;const blob=new Blob([JSON.stringify(scan,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`webshield-${scan.hostname}-scan.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
     setScan(null);
+    setTab("findings");setSeverity("ALL");
     setLoading(true);
     try {
-      const response = await fetch("/api/scan", {
+      const response = await fetch(publicScan?"/api/public-scan":"/api/scan", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ url })
       });
       const data = await response.json();
-      if (!response.ok || !data?.ok) throw new Error(data?.error || "Scan failed.");
+      if (!response.ok || !data?.ok) throw new Error(typeof data?.error==="string"?data.error:data?.error?.message||"Scan failed.");
       const result = data.scan as ScanResult;
+      if(!result?.hostname||!Array.isArray(result.findings)||!Array.isArray(result.headers)||typeof result.securityScore!=="number")throw new Error("The scanner returned an incomplete report. Please try again.");
       setScan(result);
       try {
         window.localStorage.setItem("webshield:last-scan", JSON.stringify(result));
@@ -86,108 +99,27 @@ export function WebsiteScanner() {
     }
   }
 
-  return (
-    <article className="panel" style={{ marginBottom: 16 }}>
-      <div className="panelHead">
-        <div>
-          <h3>Website Security Scan</h3>
-          <p>Live passive security-posture scan for websites you own or are authorized to assess.</p>
-        </div>
-        <span className="statusTag safe">LIVE CHECK</span>
-      </div>
-
-      <form onSubmit={submit} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, marginTop: 16 }}>
-        <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="example.com or https://example.com"
-          required
-          style={{ height: 44, borderRadius: 10, border: "1px solid rgba(120,190,225,.15)", background: "#091522", color: "#edf8ff", padding: "0 13px", outline: "none" }}
-        />
-        <button className="btn" type="submit" disabled={loading}>{loading ? "Scanning…" : "Scan Website"}</button>
-      </form>
-
-      <p style={{ fontSize: 10, marginTop: 10 }}>Passive checks only. No exploit, password attack, malware execution, or penetration testing.</p>
-      {error && <div className="formNotice error" style={{ marginTop: 12 }}>{error}</div>}
-
-      {scan && (
-        <div style={{ marginTop: 18 }}>
-          <div className="metricGrid compact">
-            <article className="metricCard"><span>Security Score</span><strong>{scan.securityScore}/100</strong><small>Grade {scan.grade}</small></article>
-            <article className="metricCard"><span>Overall Risk</span><strong>{scan.overallRisk}</strong><small>{scan.findings.length} finding(s)</small></article>
-            <article className="metricCard"><span>HTTPS</span><strong>{scan.https ? "YES" : "NO"}</strong><small>{scan.redirectedToHttps ? "HTTP → HTTPS enforced" : "Redirect not confirmed"}</small></article>
-            <article className="metricCard"><span>Response</span><strong>{scan.responseMs} ms</strong><small>HTTP {scan.status} · live probe</small></article>
-          </div>
-
-          <div className="metricGrid compact" style={{ marginTop: 12 }}>
-            {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as Severity[]).map((s) => (
-              <article className="metricCard" key={s}><span>{s} Findings</span><strong>{scan.findingCounts[s] || 0}</strong><small>Passive posture result</small></article>
-            ))}
-          </div>
-
-          <article className="panel" style={{ marginTop: 14 }}>
-            <div className="panelHead"><div><h3>Priority Security Findings</h3><p>Detected posture issues with impact and remediation guidance.</p></div></div>
-            {scan.findings.length === 0 ? (
-              <div className="formNotice">No material passive posture findings were detected by this scan.</div>
-            ) : scan.findings.map((finding, index) => (
-              <div className="eventRow" key={`${finding.title}-${index}`} style={{ alignItems: "flex-start" }}>
-                <span className={`statusTag ${tone(finding.severity)}`}>{finding.severity}</span>
-                <div style={{ flex: 1 }}>
-                  <b>{finding.title}</b>
-                  <small>{finding.category} · {finding.detail}</small>
-                  <p style={{ margin: "8px 0 4px", fontSize: 12 }}><strong>Why it matters:</strong> {finding.impact}</p>
-                  <p style={{ margin: 0, fontSize: 12 }}><strong>How to fix:</strong> {finding.fix}</p>
-                </div>
-              </div>
-            ))}
-          </article>
-
-          <div className="dashboardGrid equal" style={{ marginTop: 14 }}>
-            <article className="panel">
-              <div className="panelHead"><div><h3>Security Controls</h3><p>Browser defensive controls observed on the final response.</p></div></div>
-              {scan.headers.map((header) => (
-                <div className="decisionRow" key={header.key}>
-                  <span>{header.label}</span>
-                  <span className={`statusTag ${header.present ? "safe" : "medium"}`}>{header.present ? "PRESENT" : "MISSING"}</span>
-                </div>
-              ))}
-            </article>
-
-            <article className="panel">
-              <div className="panelHead"><div><h3>Technical Posture</h3><p>Live DNS, response and platform signals.</p></div></div>
-              <div className="decisionRow"><span>Final URL</span><code style={{ maxWidth: "60%", overflow: "hidden", textOverflow: "ellipsis" }}>{scan.finalUrl}</code></div>
-              <div className="decisionRow"><span>DNS addresses</span><b>{scan.dns.addresses.length}</b></div>
-              <div className="decisionRow"><span>HTTP→HTTPS</span><span className={`statusTag ${scan.redirectedToHttps ? "safe" : "medium"}`}>{scan.redirectedToHttps ? "ENFORCED" : "NOT CONFIRMED"}</span></div>
-              <div className="decisionRow"><span>CORS</span><code>{scan.cors || "Not exposed"}</code></div>
-              <div className="decisionRow"><span>Cookies observed</span><b>{scan.cookies.observed}</b></div>
-              <div className="decisionRow"><span>security.txt</span><span className={`statusTag ${scan.resources.securityTxt.exists ? "safe" : "medium"}`}>{scan.resources.securityTxt.exists ? "FOUND" : "NOT FOUND"}</span></div>
-              <div className="decisionRow"><span>robots.txt</span><span className={`statusTag ${scan.resources.robotsTxt.exists ? "safe" : "medium"}`}>{scan.resources.robotsTxt.exists ? "FOUND" : "NOT FOUND"}</span></div>
-            </article>
-          </div>
-
-          <div className="dashboardGrid equal" style={{ marginTop: 14 }}>
-            <article className="panel">
-              <div className="panelHead"><div><h3>Observed Technology Signals</h3><p>Only response signals actually exposed by the target are listed.</p></div></div>
-              {scan.technologies.length ? scan.technologies.map((item, i) => <div className="decisionRow" key={`${item.signal}-${i}`}><span>{item.signal}</span><code>{item.value}</code></div>) : <div className="formNotice">No technology headers were exposed.</div>}
-            </article>
-
-            <article className="panel">
-              <div className="panelHead"><div><h3>WebShield Protection Coverage</h3><p>What the scan can assess now vs what needs live website integration.</p></div></div>
-              {Object.entries(scan.capabilities).map(([key, value]) => (
-                <div className="decisionRow" key={key}>
-                  <span>{capabilityLabel(key)}</span>
-                  <span className={`statusTag ${value.includes("REQUIRES") ? "medium" : "safe"}`}>{value.replaceAll("_", " ")}</span>
-                </div>
-              ))}
-              <div className="buttonRow" style={{ marginTop: 14 }}>
-                <a className="btn small" href="/app/websites">Protect this Website</a>
-              </div>
-            </article>
-          </div>
-
-          <div className="formNotice" style={{ marginTop: 14 }}>{scan.note}</div>
-        </div>
-      )}
-    </article>
-  );
+  const order=['CRITICAL','HIGH','MEDIUM','LOW','INFO'];
+  const findings=scan?.findings.filter(f=>severity==='ALL'||f.severity===severity).sort((a,b)=>order.indexOf(a.severity)-order.indexOf(b.severity))||[];
+  return <article className="websiteScanner" aria-busy={loading}>
+    <header className="scannerHeading"><div><span className="scannerEyebrow">WEBSHIELD · LIVE PASSIVE SCAN</span><h2>Website Security Scan</h2><p>Observed security posture, evidence and recommended fixes.</p></div><span className="scannerLive">● Live check</span></header>
+    <div className="scannerBody">
+      <form ref={formRef} onSubmit={submit} className="scannerForm"><label htmlFor="scanner-url">Website URL</label><div><input id="scanner-url" aria-label="Website URL" value={url} onChange={e=>setUrl(e.target.value)} placeholder="example.com or https://example.com" required disabled={loading}/><button type="submit" disabled={loading}>{loading?'Scanning…':'Scan Website'}</button></div></form>
+      {loading&&<div className="scannerProgress" role="status"><i/><div><b>Checking website security…</b><p>Reading the response, HTTPS redirects, security headers and public configuration.</p></div></div>}
+      {error&&<div className="scannerError" role="alert"><b>Scan could not be completed</b><p>{error}</p><span>Check the domain and try again. Previous results are not shown as a successful scan.</span></div>}
+      {scan&&<div className="scannerResults" ref={resultsRef} tabIndex={-1}>
+        <div className="scannerReportHead"><div><span className="scannerEyebrow">SCAN COMPLETE</span><h3>{scan.hostname}</h3><a href={scan.finalUrl} target="_blank" rel="noopener noreferrer">{scan.finalUrl}</a><p>{new Date(scan.scannedAt).toLocaleString()} · HTTP {scan.status} {scan.statusText}</p></div><button type="button" onClick={download}>Download report</button></div>
+        {scan.status>=400&&<div className="scannerError" role="status"><b>Target returned HTTP {scan.status}</b><p>These observations describe the returned error or access-control response. They may not represent the normal website response.</p></div>}<div className="scannerMetrics"><div><span>Security score</span><strong>{scan.securityScore}<small>/100</small></strong><p>Grade {scan.grade}</p></div><div><span>Overall risk</span><strong className={'severity-'+scan.overallRisk.toLowerCase()}>{scan.overallRisk}</strong><p>{scan.findings.length} findings observed</p></div><div><span>HTTPS</span><strong>{scan.https?'Enabled':'Not enabled'}</strong><p>{scan.redirectedToHttps?'HTTP → HTTPS enforced':'HTTP redirect not confirmed'}</p></div><div><span>Response time</span><strong>{scan.responseMs}<small> ms</small></strong><p>Live HTTP response</p></div></div>
+        <div className="scannerFilters" aria-label="Filter findings by severity">{['ALL','CRITICAL','HIGH','MEDIUM','LOW','INFO'].map(level=><button type="button" aria-pressed={severity===level} key={level} onClick={()=>{setSeverity(level);setTab('findings')}}><i className={'severityDot '+level.toLowerCase()}/>{level==='ALL'?'All findings':level}<b>{level==='ALL'?scan.findings.length:scan.findingCounts[level as Severity]||0}</b></button>)}</div>
+        <div className="scannerTabs" role="tablist" aria-label="Scan report sections">{[['findings','Issues & fixes'],['headers','Security headers'],['technical','Technical details'],['coverage','Protection coverage']].map(([key,label])=><button role="tab" id={'scan-tab-'+key} aria-controls={'scan-panel-'+key} aria-selected={tab===key} type="button" key={key} onClick={()=>setTab(key)}>{label}</button>)}</div>
+        <section className="scannerTabPanel" role="tabpanel" id={'scan-panel-'+tab} aria-labelledby={'scan-tab-'+tab}>
+        {tab==='findings'&&<><div className="scannerSectionIntro"><h3>Priority security findings</h3><p>{severity==='ALL'?'All observed findings, including informational checks.':`Showing ${severity.toLowerCase()} findings.`} Each finding includes evidence, impact and a suggested fix.</p></div>{findings.length?findings.map((f,i)=><article className="scannerFinding" key={f.title+i}><header><span className={'scannerSeverity '+f.severity.toLowerCase()}>{f.severity}</span><div><h4>{f.title}</h4><small>{f.category}</small></div></header><div className="scannerFindingDetails"><div><b>Observed evidence</b><p>{f.detail}</p></div><div><b>Why it matters</b><p>{f.impact}</p></div><div className="scannerFix"><b>Recommended fix</b><p>{f.fix}</p></div></div></article>):<div className="scannerEmpty">{scan.findings.length?'No findings match this severity. Select All findings to see the full report.':'No material passive posture findings were detected. This does not guarantee that the website has no vulnerabilities.'}</div>}</>}
+        {tab==='headers'&&<><h3>Observed security headers</h3><p>Presence on the final HTTP response. Presence alone does not prove that a policy is configured safely.</p>{scan.headers.map(h=><details className="scannerControl" key={h.key}><summary><strong>{h.label}</strong><span className={'scannerSeverity '+(h.present?'safe':'medium')}>{h.present?'PRESENT':'MISSING'}</span></summary><code>{h.key}</code>{h.value&&<pre>{h.value}</pre>}<p>{h.present?'Review the observed value against your application requirements.':h.fix}</p></details>)}</>}
+        {tab==='technical'&&<><h3>Technical posture</h3><dl className="scannerTechnical">{[['Requested URL',scan.requestedUrl],['Final URL',scan.finalUrl],['HTTP status',`${scan.status} ${scan.statusText}`],['DNS resolution',scan.dns.resolved?'Resolved':'Not resolved'],['Public addresses',scan.dns.addresses.map(a=>a.address).join(', ')||'Not observed'],['Server',scan.server||'Not exposed'],['Powered by',scan.poweredBy||'Not exposed'],['CORS',scan.cors||'Not exposed'],['Cookies observed',String(scan.cookies.observed)],['Cookies without Secure',String(scan.cookies.missingSecure)],['Cookies without HttpOnly',String(scan.cookies.missingHttpOnly)],['Cookies without SameSite',String(scan.cookies.missingSameSite)],['security.txt',scan.resources.securityTxt.exists?'Found':`Not found (HTTP ${scan.resources.securityTxt.status||'unavailable'})`],['robots.txt',scan.resources.robotsTxt.exists?'Found':`Not found (HTTP ${scan.resources.robotsTxt.status||'unavailable'})`],['SPF record',scan.emailSecurity?.spf.record||'Not detected'],['DMARC record',scan.emailSecurity?.dmarc.record||'Not detected'],['Mixed HTTP resource references',scan.mixedContent?'Observed':'Not observed in returned HTML'],['HTTP redirect probe',scan.httpProbe?.status?`HTTP ${scan.httpProbe.status} · ${scan.httpProbe.finalUrl||''}`:'Not confirmed']].map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl><h3>Redirect chain</h3><ol className="scannerRedirects">{scan.redirectChain.map((u,i)=><li key={i}>{u}</li>)}</ol><h3>Observed technology signals</h3>{scan.technologies.length?<dl className="scannerTechnical">{scan.technologies.map((t,i)=><div key={i}><dt>{t.signal}</dt><dd>{t.value}</dd></div>)}</dl>:<p>No technology headers were exposed.</p>}</>}
+        {tab==='coverage'&&<><h3>Protection coverage</h3><p>A passive scan checks public response posture. Continuous monitoring and protection need a connected collector or traffic provider.</p><dl className="scannerTechnical">{Object.entries(scan.capabilities).map(([k,v])=><div key={k}><dt>{capabilityLabel(k)}</dt><dd><span className={'scannerSeverity '+(v.includes('REQUIRES')?'medium':'safe')}>{v.replaceAll('_',' ')}</span></dd></div>)}</dl><a className="scannerProtect" href="/app/websites">Connect this website for monitoring →</a></>}
+        </section><p className="scannerNote">{scan.note}</p>
+      </div>}
+      {!scan&&!loading&&!error&&<p className="scannerNote">Enter a public website URL to inspect its HTTPS, response headers and publicly exposed configuration.</p>}
+    </div>
+  </article>;
 }
