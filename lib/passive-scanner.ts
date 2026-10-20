@@ -1,3 +1,4 @@
+import { inspectCertificate } from "@/lib/certificate-inspector";
 import { lookup, resolveTxt } from "node:dns/promises";
 import net from "node:net";
 
@@ -151,6 +152,7 @@ export async function runPassiveScan(value: unknown) {
   const addresses = await publicAddresses(finalUrl.hostname);
   const https = finalUrl.protocol === "https:";
   const statusHealthy = response.status >= 200 && response.status < 400;
+  const certificate = https ? await inspectCertificate(finalUrl.hostname) : null;
 
   const httpProbe = await (async () => {
     try {
@@ -193,6 +195,23 @@ export async function runPassiveScan(value: unknown) {
   const mixedContent = https && /(?:src|href)\s*=\s*["']http:\/\//i.test(html);
 
   const findings: ScanFinding[] = [];
+  if (certificate?.status === "CHECKED") {
+    if (!certificate.valid) add(findings, "HIGH", "SSL & HTTPS", "TLS certificate validation failed",
+      certificate.authorizationError || "Certificate validation failed.",
+      "Visitors may experience browser trust warnings.",
+      "Renew or replace with a trusted certificate matching the domain.");
+    if (certificate.daysRemaining !== null && certificate.daysRemaining >= 0 && certificate.daysRemaining <= 14)
+      add(findings, "HIGH", "SSL & HTTPS", "TLS certificate expires soon",
+        "Certificate expires in " + certificate.daysRemaining + " day(s) on " + certificate.validTo + ".",
+        "Certificate expiry can interrupt website availability.",
+        "Renew the certificate and verify automatic renewal.");
+    else if (certificate.daysRemaining !== null && certificate.daysRemaining > 14 && certificate.daysRemaining <= 30)
+      add(findings, "MEDIUM", "SSL & HTTPS", "TLS certificate renewal due",
+        "Certificate expires in " + certificate.daysRemaining + " day(s) on " + certificate.validTo + ".",
+        "Certificate expiry is approaching.",
+        "Check auto-renewal and schedule verification.");
+  }
+
   if (!https) add(findings, "HIGH", "Transport", "HTTPS is not active", "The final page is served over HTTP.", "Traffic can be read or altered in transit.", "Enable HTTPS and redirect every HTTP request to HTTPS.");
   if (https && !httpProbe.redirectsToHttps) add(findings, "MEDIUM", "Transport", "HTTP does not consistently redirect to HTTPS", "The HTTP probe did not end on HTTPS.", "Visitors may reach an unencrypted version of the site.", "Configure a permanent HTTP→HTTPS redirect at the CDN, load balancer, or web server.");
 
@@ -243,7 +262,7 @@ export async function runPassiveScan(value: unknown) {
 
   // Coverage is explicit: an external passive scan must never claim an internal audit ran.
   const scanModules = [
-    { id: "ssl", name: "SSL & HTTPS", status: "PARTIAL", checks: ["HTTPS response", "HTTP to HTTPS redirects"], missing: ["Certificate expiry and chain validation need a dedicated TLS inspection"] },
+    { id: "ssl", name: "SSL & HTTPS", status: certificate?.status === "CHECKED" ? "CHECKED" : "PARTIAL", checks: ["HTTPS response", "HTTP to HTTPS redirects", ...(certificate?.status === "CHECKED" ? ["TLS certificate hostname, validity and expiry"] : [])], missing: certificate?.status === "CHECKED" ? ["Advanced cipher and revocation analysis not included"] : ["Certificate inspection unavailable or target is not HTTPS"] },
     { id: "headers", name: "Security Headers", status: "CHECKED", checks: ["Eight response security headers", "Cookie flags", "Basic CSP policy checks"], missing: ["Application-specific policy effectiveness requires contextual review"] },
     { id: "website", name: "Website Security", status: "PARTIAL", checks: ["Public .env / .git indicators", "Mixed content indicators", "Selected CORS checks"], missing: ["A passive scan does not prove the site is free from vulnerabilities"] },
     { id: "dns", name: "DNS Security", status: "PARTIAL", checks: ["DNS resolution", "SPF TXT", "DMARC TXT"], missing: ["DKIM requires owner-provided selector(s); DNSSEC not checked"] },
@@ -255,6 +274,7 @@ export async function runPassiveScan(value: unknown) {
 
   return {
     scanModules,
+    certificate,
     requestedUrl: target.toString(),
     finalUrl: finalUrl.toString(),
     hostname: finalUrl.hostname,
