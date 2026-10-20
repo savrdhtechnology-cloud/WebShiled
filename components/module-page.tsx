@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { BackendResource } from "@/components/backend-resource";
-import { ConnectedWebsites } from "@/components/connected-websites";
 import { DatabaseSecurity } from "@/components/database-security";
 import { LiveTrafficIntelligencePage, PreIntegrationIntelligence } from "@/components/pre-integration-intelligence";
 
@@ -33,7 +32,6 @@ export function ClientModule({slug}:{slug:string}){
 }
 
 export function AdminModule({slug}:{slug:string}){
-  if(slug==="websites") return <ConnectedWebsites/>;
   if(slug==="database-security") return <DatabasePage admin/>;
   if(slug==="fix-center") return <DatabasePage admin fixes/>;
   if(slug==="security-events") return <BackendResource resource="threats" title="Security Events" description="Threat and security events available to the current workspace."/>;
