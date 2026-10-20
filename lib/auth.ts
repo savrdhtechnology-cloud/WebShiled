@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { AppUser, Role } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
+import { withBasePath } from "@/lib/base-path";
 
 export async function createDemoSession(_role?: Role): Promise<never> {
   throw new Error("Demo authentication is disabled.");
@@ -35,16 +36,16 @@ export async function getCurrentUser(): Promise<AppUser | null> {
 
 export async function requireUser() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login?next=/app/dashboard");
-  if (!user.organizationId || user.organizationId === "unassigned") redirect("/login?error=no-workspace");
+  if (!user) redirect(withBasePath("/login?next=/app/dashboard"));
+  if (!user.organizationId || user.organizationId === "unassigned") redirect(withBasePath("/login?error=no-workspace"));
   return user;
 }
 
 export async function requireAdmin() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login?next=/admin/dashboard");
-  if (!user.organizationId || user.organizationId === "unassigned") redirect("/login?error=no-workspace");
-  if (!(["OWNER", "ADMIN"] as Role[]).includes(user.role)) redirect("/app/dashboard?denied=admin");
+  if (!user) redirect(withBasePath("/login?next=/admin/dashboard"));
+  if (!user.organizationId || user.organizationId === "unassigned") redirect(withBasePath("/login?error=no-workspace"));
+  if (!(["OWNER", "ADMIN"] as Role[]).includes(user.role)) redirect(withBasePath("/app/dashboard?denied=admin"));
   return user;
 }
 

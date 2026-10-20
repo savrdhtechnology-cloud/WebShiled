@@ -1,4 +1,5 @@
 "use client";
+import { apiPath } from "@/lib/base-path";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Icon } from "@/components/icons";
@@ -67,7 +68,7 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
     setLoading(true); setError("");
     try{
       const suffix=connectionId?`?connectionId=${encodeURIComponent(connectionId)}`:"";
-      const r=await fetch("/api/database-security"+suffix,{cache:"no-store"});
+      const r=await fetch(apiPath("/api/database-security")+suffix,{cache:"no-store"});
       const b=await r.json();
       if(!r.ok||!b.ok)throw new Error(b?.error?.message||"Database Security could not be loaded.");
       const p=b.data as Payload;
@@ -83,7 +84,7 @@ export function DatabaseSecurity({ mode="security", admin=false }:{mode?:"securi
   async function action(body:Record<string,unknown>,label:string){
     setBusy(label); setError(""); setNotice("");
     try{
-      const r=await fetch("/api/database-security",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+      const r=await fetch(apiPath("/api/database-security"),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
       const b=await r.json();
       if(!r.ok||!b.ok)throw new Error(b?.error?.message||"Request failed.");
       return b.data;

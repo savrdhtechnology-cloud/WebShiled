@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { PublicScanner } from "@/components/public-scanner";
+import { AppearanceProvider } from "@/components/appearance-studio";
 
 const features = [
   ["Real-Time Visitor Monitoring", "Track visitors, IP, country, device, browser, operating system, pages and sessions after WebShield integration is connected.", "visitors"],
@@ -16,6 +17,7 @@ const features = [
 
 export default function HomePage() {
   return (
+    <AppearanceProvider initialScope="landing" showLauncher={false}>
     <main className="marketing">
       <header className="publicNav container">
         <Logo />
@@ -75,5 +77,6 @@ export default function HomePage() {
       <section className="cta"><div className="container"><div><span>WEBSHIELD</span><h2>Find the problem. Fix the posture. Connect protection.</h2></div><a className="btn" href="#scan">Scan Website <Icon name="chevron"/></a></div></section>
       <footer className="footer container"><Logo/><p>WebShield © 2026 Savrdh Technologies. Scan. Monitor. Protect.</p><a href="https://www.savrdhtechnology.com">savrdhtechnology.com</a></footer>
     </main>
+    </AppearanceProvider>
   );
 }
