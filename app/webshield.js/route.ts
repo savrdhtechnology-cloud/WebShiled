@@ -8,8 +8,10 @@ const SCRIPT = String.raw`(() => {
     const siteKey = script && script.getAttribute("data-site-key");
     if (!siteKey) return;
 
-    const endpoint = script && script.src\n      ? new URL("./api/collect", script.src).href\n      : "https://savrdhtechnologies.com/webshield/api/collect";
-    const storageKey = "webshield:visitor:" + siteKey;
+    const endpoint = script && script.src
+      ? new URL("./api/collect", script.src).href
+      : "https://savrdhtechnologies.com/webshield/api/collect";
+        const storageKey = "webshield:visitor:" + siteKey;
     let visitorKey = "";
     try {
       visitorKey = sessionStorage.getItem(storageKey) || "";
@@ -25,7 +27,7 @@ const SCRIPT = String.raw`(() => {
 
     let lastUrl = "";
     const send = () => {
-      const url = location.href;
+      const url = location.origin + location.pathname + location.search;
       if (url === lastUrl) return;
       lastUrl = url;
       fetch(endpoint, {
