@@ -1,4 +1,5 @@
 "use client";
+import { apiPath } from "@/lib/base-path";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Icon } from "@/components/icons";
@@ -25,7 +26,7 @@ export function BackendWebsites() {
   async function load(){
     setLoading(true); setError("");
     try{
-      const r=await fetch("/api/websites",{cache:"no-store"});
+      const r=await fetch(apiPath("/api/websites"),{cache:"no-store"});
       const b=await r.json();
       if(!r.ok||!b.ok) throw new Error(b?.error?.message||"Could not load websites.");
       setItems(b.data||[]);
@@ -37,7 +38,7 @@ export function BackendWebsites() {
   async function add(e:FormEvent){
     e.preventDefault(); setError(""); setNotice("");
     try{
-      const r=await fetch("/api/websites",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({domain})});
+      const r=await fetch(apiPath("/api/websites"),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({domain})});
       const b=await r.json();
       if(!r.ok||!b.ok) throw new Error(b?.error?.message||"Could not add website.");
       setDomain("");
@@ -50,7 +51,7 @@ export function BackendWebsites() {
   async function openIntegration(item:Website){
     setIntegrationBusy(true); setIntegrationError(""); setCopied(false);
     try{
-      const r=await fetch("/api/websites/integration",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:item.id,action:"enable"})});
+      const r=await fetch(apiPath("/api/websites/integration"),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:item.id,action:"enable"})});
       const b=await r.json();
       if(!r.ok||!b.ok) throw new Error(b?.error?.message||"Could not prepare integration.");
       setIntegration(b.data);
@@ -62,7 +63,7 @@ export function BackendWebsites() {
     if(!integration) return;
     setIntegrationBusy(true); setIntegrationError("");
     try{
-      const r=await fetch("/api/websites/integration",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:integration.id,action:"verify"})});
+      const r=await fetch(apiPath("/api/websites/integration"),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:integration.id,action:"verify"})});
       const b=await r.json();
       if(!r.ok||!b.ok) throw new Error(b?.error?.message||"Connection not detected yet.");
       setIntegration(b.data);
@@ -89,7 +90,7 @@ export function BackendWebsites() {
     if(!window.confirm(warning)) return;
     setRemovingId(item.id); setError(""); setNotice("");
     try{
-      const r=await fetch(`/api/websites?id=${encodeURIComponent(item.id)}`,{method:"DELETE"});
+      const r=await fetch(apiPath(`/api/websites?id=${encodeURIComponent(item.id)}`),{method:"DELETE"});
       const b=await r.json();
       if(!r.ok||!b.ok) throw new Error(b?.error?.message||"Could not remove website.");
       if(integration?.id===item.id) setIntegration(null);
