@@ -32,3 +32,27 @@
  .connectWizardSteps{grid-template-columns:repeat(2,1fr)}
  .connectWizard .moduleDetail{grid-template-columns:1fr}
 }
+
+.connectWizardSteps{grid-template-columns:repeat(6,minmax(0,1fr))}
+.connectWizardAuditMetrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.connectWizardAuditMetrics>div{padding:14px;border:1px solid #123f58;border-radius:9px;background:linear-gradient(140deg,#032137,#00131f)}
+.connectWizardAuditMetrics span{display:block;color:#8fb5cf;font-size:9px;margin-bottom:7px}
+.connectWizardAuditMetrics strong{font-size:24px;color:#eaf7ff}
+.connectWizardAuditMetrics small{font-size:12px;color:#7fa7c3;font-weight:400}
+.connectWizardFindingSummary{display:flex;flex-wrap:wrap;gap:8px}
+.connectWizardFindingSummary span{border:1px solid #16445d;border-radius:7px;padding:8px 10px;background:#001826;color:#9bc1dc;font-size:9px}
+.connectWizardFindingSummary b{color:#e9f8ff}
+.connectWizardFindings{display:grid;gap:8px}
+.connectWizardFindings>div{display:flex;align-items:center;gap:12px;border:1px solid #123c53;border-radius:8px;padding:10px;background:#001723}
+.connectWizardFindings>div>span{font-size:8px;border:1px solid #8b5a13;color:#ffd45a;border-radius:5px;padding:4px 6px}
+.connectWizardFindings b{display:block;font-size:11px}
+.connectWizardFindings small{display:block;font-size:9px;color:#7da5c5;margin-top:4px}
+.connectWizardReadiness{display:grid;gap:8px}
+.connectWizardReadiness>div{display:flex;align-items:center;gap:12px;border:1px solid #123c53;border-radius:8px;padding:11px;background:#001723}
+.connectWizardReadiness>div>b{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:2px solid #31536a;font-size:10px}
+.connectWizardReadiness>div.done>b{background:#00e0a5;border-color:#00e0a5;color:#001a19}
+.connectWizardReadiness>div.pending>b{border-color:#87691d;color:#ffd454}
+.connectWizardReadiness>div>span{font-size:11px;color:#d8ecfa}
+.connectWizardReadiness small{display:block;color:#7fa5c2;font-size:9px;margin-top:4px}
+@media(max-width:1000px){.connectWizardSteps{grid-template-columns:repeat(3,1fr)}.connectWizardAuditMetrics{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.connectWizardSteps{grid-template-columns:repeat(2,1fr)}.connectWizardAuditMetrics{grid-template-columns:1fr}}
