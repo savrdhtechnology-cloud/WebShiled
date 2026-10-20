@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    const mode = body?.mode === "deep" ? "deep" : "soft";
     const input = String(body?.url || "").trim();
     const url = new URL(/^https?:\/\//i.test(input) ? input : "https://" + input);
     if (!["http:", "https:"].includes(url.protocol)) throw new Error("Only HTTP(S) websites are allowed.");
@@ -34,7 +35,16 @@ export async function POST(request: NextRequest) {
       return reply({ ok: false, error: "Add and verify ownership of this domain before running workspace scans." }, 403);
 
     const started = new Date().toISOString();
-    const scan = await runPassiveScan(url.toString());
+    const passive = await runPassiveScan(url.toString());
+    // Distinguish completed public checks from connected audits that have not run.
+    const scan = {
+      ...passive,
+      scanMode: mode.toUpperCase(),
+      deepScanStatus: mode === "deep" ? "PARTIAL_REQUIRES_CONNECTED_AUDITS" : "NOT_REQUESTED",
+      note: mode === "deep"
+        ? "Passive website checks completed. Database, malware and source-code security were NOT checked without separate authorized integrations."
+        : passive.note
+    };
     // Reports are scoped to the organization and stored using existing RLS-protected schema.
     const { data: saved, error: saveError } = await client.from("security_scan_runs").insert({
       organization_id: user.organizationId, website_id: site.id, status: "COMPLETED",
