@@ -65,6 +65,7 @@ export function WebsiteScanner({publicScan=false,initialUrl="",autoScan=false,in
   const [scan, setScan] = useState<ScanResult | null>(initialScan||null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [scanMode,setScanMode]=useState<"soft"|"deep">("soft");
   const [history,setHistory]=useState<Array<{id:string;created_at:string;security_score:number|null;overall_risk:string|null;status:string}>>([]);
   const [historyError,setHistoryError]=useState("");
 
@@ -86,7 +87,7 @@ export function WebsiteScanner({publicScan=false,initialUrl="",autoScan=false,in
       const response = await fetch(apiPath(publicScan?"/api/public-scan":"/api/scan"), {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url, mode:scanMode })
       });
       const data = await response.json();
       if (!response.ok || !data?.ok) throw new Error(typeof data?.error==="string"?data.error:data?.error?.message||"Scan failed.");
@@ -118,9 +119,14 @@ export function WebsiteScanner({publicScan=false,initialUrl="",autoScan=false,in
   const order=['CRITICAL','HIGH','MEDIUM','LOW','INFO'];
   const findings=scan?.findings.filter(f=>severity==='ALL'||f.severity===severity).sort((a,b)=>order.indexOf(a.severity)-order.indexOf(b.severity))||[];
   return <article className="websiteScanner" aria-busy={loading}>
-    <header className="scannerHeading"><div><span className="scannerEyebrow">WEBSHIELD · LIVE PASSIVE SCAN</span><h2>Website Security Scan</h2><p>Observed security posture, evidence and recommended fixes.</p></div><span className="scannerLive">● Live check</span></header>
+    <header className="scannerHeading"><div><span className="scannerEyebrow">WEBSHIELD · SECURITY SCAN</span><h2>Security Scanner</h2><p>Choose a Soft Scan or an authorized Deep Scan. Results distinguish completed checks from unavailable integrations.</p></div><span className="scannerLive">● Live check</span></header>
     <div className="scannerBody">
-      <form ref={formRef} onSubmit={submit} className="scannerForm"><label htmlFor="scanner-url">Website URL</label><div><input id="scanner-url" aria-label="Website URL" value={url} onChange={e=>setUrl(e.target.value)} placeholder="example.com or https://example.com" required disabled={loading}/><button type="submit" disabled={loading}>{loading?'Scanning…':'Scan Website'}</button></div></form>
+      <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}} role="group" aria-label="Scan mode">
+        <button type="button" className={scanMode==="soft"?"btn small":"ghostBtn small"} aria-pressed={scanMode==="soft"} disabled={loading} onClick={()=>setScanMode("soft")}>Soft Scan · website security</button>
+        <button type="button" className={scanMode==="deep"?"btn small":"ghostBtn small"} aria-pressed={scanMode==="deep"} disabled={loading||publicScan} onClick={()=>setScanMode("deep")}>Deep Scan · verified client audit</button>
+      </div>
+      <p className="scannerNote">{scanMode==="soft"?"Non-invasive checks: HTTPS, TLS certificate, headers, DNS and selected public configurations.":"Deep Scan requires an owned, verified website and authorized connected systems. Missing integrations are reported as not checked; no intrusive tests run automatically."}</p>
+      <form ref={formRef} onSubmit={submit} className="scannerForm"><label htmlFor="scanner-url">Website URL</label><div><input id="scanner-url" aria-label="Website URL" value={url} onChange={e=>setUrl(e.target.value)} placeholder="example.com or https://example.com" required disabled={loading}/><button type="submit" disabled={loading}>{loading?'Scanning…':scanMode==='deep'?'Start Deep Scan':'Start Soft Scan'}</button></div></form>
       {loading&&<div className="scannerProgress" role="status"><i/><div><b>Checking website security…</b><p>Reading the response, HTTPS redirects, security headers and public configuration.</p></div></div>}
       {error&&<div className="scannerError" role="alert"><b>Scan could not be completed</b><p>{error}</p><span>Check the domain and try again. Previous results are not shown as a successful scan.</span></div>}
       {scan&&<div className="scannerResults" ref={resultsRef} tabIndex={-1}>
