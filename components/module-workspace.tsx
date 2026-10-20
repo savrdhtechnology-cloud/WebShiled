@@ -120,16 +120,16 @@ export function ConnectedCommandCenter({base='/app'}:{base?:string}){
  </div>;
 }
 
-type Session={occurred_at:string;visitor_id?:string;status?:string;requested_url?:string};
-type Visitor={id:string;country?:string;city?:string;ip_address?:string;device?:string;browser?:string;last_seen_at?:string};
-type Dashboard={metrics?:Record<string,number>;websitesData?:Row[];visitorsData?:Visitor[];sessionsData?:Session[];threats?:Row[];alerts?:Row[]};
+type Session={website_id:string;occurred_at:string;visitor_id?:string;status?:string;requested_url?:string};
+type Visitor={id:string;website_id:string;country?:string;city?:string;ip_address?:string;device?:string;browser?:string;last_seen_at?:string};
+type Dashboard={metrics?:Record<string,number>;websitesData?:Array<{id:string;domain:string;integration_status?:string|null;last_event_at?:string|null}>;visitorsData?:Visitor[];sessionsData?:Session[];threats?:Row[];alerts?:Row[]};
 export function ConnectedOverview({page,base='/app'}:{page:string;base?:string}){
  const [siteId,setSiteId]=useState('ALL');
  const [data,setData]=useState<Dashboard|null>(null),[error,setError]=useState(''),[paused,setPaused]=useState(false),[range,setRange]=useState('Last 24 hours'),[country,setCountry]=useState(''),[selected,setSelected]=useState<Visitor|null>(null),[refresh,setRefresh]=useState(0);
  useEffect(()=>{if(paused)return;const controller=new AbortController();let active=true;async function load(){try{const r=await fetch(apiPath('/api/dashboard'),{cache:'no-store',signal:controller.signal});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error?.message||'Telemetry unavailable');if(active){setData(b.data);setError('')}}catch(e){if(active&&!controller.signal.aborted)setError(e instanceof Error?e.message:'Telemetry unavailable')}}load();const timer=setInterval(load,15000);return()=>{active=false;controller.abort();clearInterval(timer)}},[paused,refresh]);
  const days=range.includes('7')?7:1;const cutoff=Date.now()-days*86400000;const visitors=(data?.visitorsData||[]).filter(v=>(siteId==='ALL'||v.website_id===siteId)&&v.last_seen_at&&new Date(v.last_seen_at).getTime()>=cutoff);const sessions=(data?.sessionsData||[]).filter(s=>(siteId==='ALL'||s.website_id===siteId)&&new Date(s.occurred_at).getTime()>=cutoff);
- const series:TrafficPoint[]=useMemo(()=>bucketSessions(sessions,Date.now(),days),[data,days,siteId]);
- const countries=useMemo(()=>{const counts=new Map<string,number>();visitors.forEach(v=>counts.set(v.country||'Unknown',(counts.get(v.country||'Unknown')||0)+1));return [...counts.entries()].sort((a,b)=>b[1]-a[1])},[data,range]);
+ const series:TrafficPoint[]=bucketSessions(sessions,Date.now(),days);
+ const countries=useMemo(()=>{const counts=new Map<string,number>();visitors.forEach(v=>counts.set(v.country||'Unknown',(counts.get(v.country||'Unknown')||0)+1));return [...counts.entries()].sort((a,b)=>b[1]-a[1])},[data,range,siteId]);
  const locations=countries.flatMap(([name,count])=>{const match=sampleLocations.find(p=>p.name.toLowerCase()===name.toLowerCase()||p.code.toLowerCase()===name.toLowerCase());return match?[{...match,name,count,risk:false}]:[]});
  if(error)return <section className="refPanel moduleError" role="alert"><h2>Unable to load connected telemetry</h2><p>{error}</p><button onClick={()=>setRefresh(r=>r+1)}>Retry</button></section>;
  if(!data)return <section className="refPanel"><p role="status">Loading connected Supabase workspace…</p></section>;
