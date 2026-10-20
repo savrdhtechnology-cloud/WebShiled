@@ -1,4 +1,5 @@
 "use client";
+import { apiPath } from "@/lib/base-path";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
@@ -78,7 +79,7 @@ export function WebsiteScanner({publicScan=false,initialUrl="",autoScan=false,in
     setTab("findings");setSeverity("ALL");
     setLoading(true);
     try {
-      const response = await fetch(publicScan?"/api/public-scan":"/api/scan", {
+      const response = await fetch(apiPath(publicScan?"/api/public-scan":"/api/scan"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ url })
