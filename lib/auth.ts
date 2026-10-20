@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import type { AppUser, Role } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createDemoSession(): Promise<never> {
+export async function createDemoSession(_role?: Role): Promise<never> {
   throw new Error("Demo authentication is disabled.");
 }
 
