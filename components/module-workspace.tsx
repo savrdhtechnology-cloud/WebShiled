@@ -7,6 +7,7 @@ import {BackendWebsites} from './backend-websites';
 import {WebsiteScanner} from './website-scanner';
 import {DatabaseSecurity} from './database-security';
 import {AppearanceStudioPage} from './appearance-studio';
+import {Icon} from './icons';
 
 type Row=Record<string,unknown>;
 const sampleThreats:Row[]=[{id:'DEMO-01',type:'Bot Activity',severity:'HIGH',source_ip:'192.0.2.10',target_url:'/login',risk_score:82,status:'OPEN'},{id:'DEMO-02',type:'Suspicious Request',severity:'MEDIUM',source_ip:'192.0.2.11',target_url:'/api',risk_score:61,status:'OPEN'},{id:'DEMO-03',type:'Login Probe',severity:'MEDIUM',source_ip:'192.0.2.12',target_url:'/admin',risk_score:56,status:'OPEN'}];
@@ -39,10 +40,92 @@ export function ModuleWorkspace({page,connected=false}:{page:string;connected?:b
  </div>;
 }
 
+function CommandBars(){return <span className="refBars">{[12,20,15,28,18,34,24,42].map((v,i)=><i key={i} style={{height:v}}/>)}</span>}
+
+function CommandRing({value}:{value:number}){return <div className="refRing" style={{background:`conic-gradient(#00edb1 ${value*3.6}deg,#0b2736 0)`}}><div><strong>{value}</strong><span>/ 100</span></div></div>}
+
+export function ConnectedCommandCenter({base='/app'}:{base?:string}){
+ const [data,setData]=useState<Dashboard|null>(null),[error,setError]=useState(''),[paused,setPaused]=useState(false),[range,setRange]=useState('Last 24 hours'),[refresh,setRefresh]=useState(0);
+ useEffect(()=>{if(paused)return;const controller=new AbortController();let active=true;async function load(){try{const r=await fetch('/api/dashboard',{cache:'no-store',signal:controller.signal});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error?.message||'Telemetry unavailable');if(active){setData(b.data);setError('')}}catch(e){if(active&&!controller.signal.aborted)setError(e instanceof Error?e.message:'Telemetry unavailable')}}load();const timer=setInterval(load,15000);return()=>{active=false;controller.abort();clearInterval(timer)}},[paused,refresh]);
+ const days=range.includes('7')?7:1;
+ const series:TrafficPoint[]=useMemo(()=>bucketSessions(data?.sessionsData||[],Date.now(),days),[data,days]);
+ if(error)return <section className="refPanel moduleError" role="alert"><h2>Unable to load connected telemetry</h2><p>{error}</p><button onClick={()=>setRefresh(r=>r+1)}>Retry</button></section>;
+ if(!data)return <section className="refPanel"><p role="status">Loading connected Supabase workspace…</p></section>;
+
+ const metrics=data.metrics||{};
+ const websites=Number(metrics.websites||0);
+ const threats=Number(metrics.threats||0);
+ const alerts=Number(metrics.openAlerts||0);
+ const blocked=Number(metrics.blockedRequests||0);
+ const activeVisitors=Number(metrics.activeVisitors||0);
+ const score=websites>0?Math.max(0,100-Math.min(100,threats*12+alerts*6+blocked*2)):0;
+ const severity=(data.threats||[]).reduce((acc:Record<string,number>,row)=>{const key=String(row.severity||'LOW').toUpperCase();acc[key]=(acc[key]||0)+1;return acc},{});
+ const riskLabel=websites===0?'Not Assessed':score>=85?'Low Risk':score>=65?'Medium Risk':'High Risk';
+ const visitors=data.visitorsData||[];
+ const countryCounts=new Map<string,number>();
+ visitors.forEach(v=>countryCounts.set(v.country||'Unknown',(countryCounts.get(v.country||'Unknown')||0)+1));
+ const topCountry=[...countryCounts.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
+
+ return <div className="connectedOverview">
+   <div className="refActions">
+     <Link className="refPrimary" href={base+'/websites'}><Icon name="plus"/> Add Website</Link>
+     <Link href={base+'/websites'}>▶　Run Scan</Link>
+     <Link href={base+'/database-security'}>▤　Connect Database</Link>
+   </div>
+
+   <div className="refMetrics">
+     <Link href={base+'/websites'} className="refMetric tone0">
+       <div className="refMetricIcon"><Icon name="shield" size={29}/></div>
+       <div><span>Security Score</span><strong>{score}<small> / 100</small></strong><p>{websites? 'Derived from current recorded events':'Add a website to calculate posture'}</p></div><CommandBars/>
+     </Link>
+     <Link href={base+'/websites'} className="refMetric tone1">
+       <div className="refMetricIcon"><Icon name="globe" size={29}/></div>
+       <div><span>Websites</span><strong>{websites}</strong><p>Connected websites</p></div><CommandBars/>
+     </Link>
+     <Link href={base+'/threat-center'} className="refMetric tone2">
+       <div className="refMetricIcon"><Icon name="threat" size={29}/></div>
+       <div><span>Threats</span><strong>{threats}</strong><p>Recorded security threats</p></div><CommandBars/>
+     </Link>
+     <Link href={base+'/alerts'} className="refMetric tone3">
+       <div className="refMetricIcon"><Icon name="bell" size={29}/></div>
+       <div><span>Alerts</span><strong>{alerts}</strong><p>Needs your attention</p></div><CommandBars/>
+     </Link>
+   </div>
+
+   <div className="refColumns">
+     <section className="refPanel">
+       <header><Icon name="chart" size={25}/><div><h2>Security Activity</h2><p>Website traffic, threats and security events from your connected workspace.</p></div><select aria-label="Chart range" value={range} onChange={e=>setRange(e.target.value)}><option>Last 24 hours</option><option>Last 7 days</option></select></header>
+       <ActivityGraph data={series} paused={paused} range={range}/>
+     </section>
+     <section className="refPanel">
+       <header><Icon name="shield" size={25}/><div><h2>Risk Summary</h2><p>Current risk from recorded WebShield events.</p></div></header>
+       <div className="refRisk"><CommandRing value={score}/><div><span className="refBadge low">{riskLabel}</span><p>{websites? 'Based on current recorded threats, alerts and blocks.':'Connect and scan a website to assess posture.'}</p>{['Critical Issues','High Risk','Medium Risk','Low Risk'].map((s,i)=><p key={s}><span className={'refDot dot'+i}/>{s}<b>{[severity.CRITICAL||0,severity.HIGH||0,severity.MEDIUM||0,severity.LOW||0][i]}</b></p>)}</div></div>
+     </section>
+   </div>
+
+   <div className="refBottom">
+     <section className="refPanel">
+       <header><Icon name="globe" size={25}/><div><h2>Website Security</h2><p>Your connected websites and current integration status.</p></div><Link href={base+'/websites'}>Add Website</Link></header>
+       {data.websitesData?.length?data.websitesData.slice(0,5).map(site=><Link className="connectedListItem" href={base+'/websites'} key={text(site.id)}><span>{text(site.domain)}</span><b>{text(site.integration_status)}</b></Link>):<p>No websites added yet.</p>}
+     </section>
+     <section className="refPanel">
+       <header><Icon name="threat" size={25}/><div><h2>Recent Threats</h2><p>Latest recorded security events.</p></div></header>
+       {data.threats?.length?data.threats.slice(0,4).map(t=><Link className="refThreat" href={base+'/threat-center'} key={text(t.id)}><Icon name="threat"/><div>{text(t.type)}<small>{text(t.target_url)}</small></div><span className={'refBadge '+String(t.severity||'LOW').toLowerCase()}>{text(t.severity)}</span></Link>):<p>No threat events recorded.</p>}
+     </section>
+     <div className="refStack">
+       <section className="refPanel"><header><Icon name="chart" size={25}/><div><h2>Live Traffic</h2></div><Link href={base+'/live-traffic'}>View →</Link></header><div className="refMiniStats"><div>Live Visitors<strong>{activeVisitors}</strong></div><div>Top Country<strong>{topCountry}</strong></div><div>Blocked<strong>{blocked}</strong></div></div></section>
+       <section className="refPanel"><h2>Protection Readiness</h2><p className="refCheck">{websites?'✓':'○'}　Website Added</p><p className="refCheck">{data.websitesData?.some(s=>Boolean(s.verified_at))?'✓':'○'}　Ownership Verified</p><p className="refCheck">{data.websitesData?.some(s=>String(s.integration_status).includes('CONNECTED'))?'✓':'○'}　Collector Connected</p><Link href={base+'/websites'}>Manage protection →</Link></section>
+     </div>
+   </div>
+
+   <div className="moduleToolbar"><select aria-label="Telemetry time range" value={range} onChange={e=>setRange(e.target.value)}><option>Last 24 hours</option><option>Last 7 days</option></select><button onClick={()=>setPaused(!paused)}>{paused?'Resume updates':'Pause updates'}</button><button onClick={()=>setRefresh(r=>r+1)}>Refresh now</button><button onClick={()=>exportCsv(visitors.map(v=>({...v})),'webshield-visitors')}>Export visitors</button></div>
+ </div>;
+}
+
 type Session={occurred_at:string;visitor_id?:string;status?:string;requested_url?:string};
 type Visitor={id:string;country?:string;city?:string;ip_address?:string;device?:string;browser?:string;last_seen_at?:string};
 type Dashboard={metrics?:Record<string,number>;websitesData?:Row[];visitorsData?:Visitor[];sessionsData?:Session[];threats?:Row[];alerts?:Row[]};
-export function ConnectedOverview({page}:{page:string}){
+export function ConnectedOverview({page,base='/app'}:{page:string;base?:string}){
  const [data,setData]=useState<Dashboard|null>(null),[error,setError]=useState(''),[paused,setPaused]=useState(false),[range,setRange]=useState('Last 24 hours'),[country,setCountry]=useState(''),[selected,setSelected]=useState<Visitor|null>(null),[refresh,setRefresh]=useState(0);
  useEffect(()=>{if(paused)return;const controller=new AbortController();let active=true;async function load(){try{const r=await fetch('/api/dashboard',{cache:'no-store',signal:controller.signal});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error?.message||'Telemetry unavailable');if(active){setData(b.data);setError('')}}catch(e){if(active&&!controller.signal.aborted)setError(e instanceof Error?e.message:'Telemetry unavailable')}}load();const timer=setInterval(load,15000);return()=>{active=false;controller.abort();clearInterval(timer)}},[paused,refresh]);
  const days=range.includes('7')?7:1;const cutoff=Date.now()-days*86400000;const visitors=(data?.visitorsData||[]).filter(v=>v.last_seen_at&&new Date(v.last_seen_at).getTime()>=cutoff);const sessions=(data?.sessionsData||[]).filter(s=>new Date(s.occurred_at).getTime()>=cutoff);
@@ -52,5 +135,5 @@ export function ConnectedOverview({page}:{page:string}){
  if(error)return <section className="refPanel moduleError" role="alert"><h2>Unable to load connected telemetry</h2><p>{error}</p><button onClick={()=>setRefresh(r=>r+1)}>Retry</button></section>;
  if(!data)return <section className="refPanel"><p role="status">Loading connected Supabase workspace…</p></section>;
  const traffic=page==='live-traffic'||page==='live-visitors';
- return <div className="connectedOverview"><div className="moduleToolbar"><select aria-label="Telemetry time range" value={range} onChange={e=>setRange(e.target.value)}><option>Last 24 hours</option><option>Last 7 days</option></select><button onClick={()=>setPaused(!paused)}>{paused?'Resume updates':'Pause updates'}</button><button onClick={()=>setRefresh(r=>r+1)}>Refresh now</button><button onClick={()=>exportCsv(visitors.map(v=>({...v})),'webshield-visitors')}>Export visitors</button></div><div className="refMetrics">{[['Websites',data.metrics?.websites||0,'/app/websites'],['Visitors',visitors.length,'/app/live-traffic'],['Threats',data.metrics?.threats||0,'/app/threat-center'],['Open Alerts',data.metrics?.openAlerts||0,'/app/alerts']].map(([label,value,href])=><Link className="refMetric moduleMetric" href={String(href)} key={label}><span>{label}</span><strong>{value}</strong><small>View {String(label).toLowerCase()} →</small></Link>)}</div>{traffic&&<div className="refColumns"><section className="refPanel"><header><div><h2>Live Visitor Map</h2><p>Country-centre locations from collected visitor telemetry.</p></div></header><VisitorMap locations={locations} paused={paused} onSelect={p=>setCountry(p.name)}/></section><section className="refPanel"><h2>Top Countries</h2>{countries.length?countries.map(([name,count])=><button className="refCountry" key={name} onClick={()=>setCountry(name)}><span>{name}</span><b>{count}</b><i><em style={{width:`${count/Math.max(1,visitors.length)*100}%`}}/></i></button>):<p>No geographic data received yet.</p>}</section></div>}<section className="refPanel"><header><div><h2>{traffic?'Traffic Activity':'Security Activity'}</h2><p>{range} · {sessions.length} recent collected sessions in current window · 5,000 session / 1,000 visitor display limit · refreshes every 15 seconds</p></div></header><ActivityGraph data={series} paused={paused} range={range}/></section>{!traffic&&<div className="refEqual"><section className="refPanel"><h2>Connected websites</h2>{data.websitesData?.length?data.websitesData.map(s=><Link className="connectedListItem" href="/app/websites" key={text(s.id)}><span>{text(s.domain)}</span><b>{text(s.integration_status)}</b></Link>):<p>No websites yet.</p>}<Link className="refPrimary" href="/app/websites">Add or connect website</Link></section><section className="refPanel"><h2>Recent security events</h2>{data.threats?.length?data.threats.map(t=><Link className="connectedListItem" href="/app/threat-center" key={text(t.id)}>{text(t.type)}<b>{text(t.severity)}</b></Link>):<p>No threat events recorded.</p>}<Link href="/app/database-security" className="refPrimary">Open Database Security</Link></section></div>}<section className="refPanel"><header><div><h2>Visitor Stream {country&&`· ${country}`}</h2><p>Collected records, with no simulated traffic.</p></div>{country&&<button onClick={()=>setCountry('')}>Clear country filter</button>}</header>{visitors.length?<div className="refTable"><table><thead><tr>{['Country','City','IP address','Device','Browser','Last seen','Action'].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{visitors.filter(v=>!country||v.country===country).map(v=><tr key={v.id}><td>{v.country||'Unknown'}</td><td>{v.city||'Unknown'}</td><td>{v.ip_address||'Not captured'}</td><td>{v.device||'Unknown'}</td><td>{v.browser||'Unknown'}</td><td>{v.last_seen_at?new Date(v.last_seen_at).toLocaleString():'Unknown'}</td><td><button onClick={()=>setSelected(v)}>View session</button></td></tr>)}</tbody></table></div>:<p>No visitors collected during this period. <Link href="/app/websites">Install the website collector to start monitoring →</Link></p>}</section>{selected&&<section className="refPanel moduleSelected"><header><h2>Visitor details</h2><button onClick={()=>setSelected(null)}>Close details</button></header><dl className="moduleDetail">{Object.entries(selected).map(([k,v])=><div key={k}><dt>{k}</dt><dd>{text(v)}</dd></div>)}</dl><h3>Recent pages</h3>{sessions.filter(s=>s.visitor_id===selected.id).map((s,i)=><p key={i}>{s.requested_url} · {s.status} · {new Date(s.occurred_at).toLocaleString()}</p>)}</section>}</div>;
+ return <div className="connectedOverview"><div className="moduleToolbar"><select aria-label="Telemetry time range" value={range} onChange={e=>setRange(e.target.value)}><option>Last 24 hours</option><option>Last 7 days</option></select><button onClick={()=>setPaused(!paused)}>{paused?'Resume updates':'Pause updates'}</button><button onClick={()=>setRefresh(r=>r+1)}>Refresh now</button><button onClick={()=>exportCsv(visitors.map(v=>({...v})),'webshield-visitors')}>Export visitors</button></div><div className="refMetrics">{[['Websites',data.metrics?.websites||0,base+'/websites'],['Visitors',visitors.length,base+'/live-traffic'],['Threats',data.metrics?.threats||0,base+'/threat-center'],['Open Alerts',data.metrics?.openAlerts||0,base+'/alerts']].map(([label,value,href])=><Link className="refMetric moduleMetric" href={String(href)} key={label}><span>{label}</span><strong>{value}</strong><small>View {String(label).toLowerCase()} →</small></Link>)}</div>{traffic&&<div className="refColumns"><section className="refPanel"><header><div><h2>Live Visitor Map</h2><p>Country-centre locations from collected visitor telemetry.</p></div></header><VisitorMap locations={locations} paused={paused} onSelect={p=>setCountry(p.name)}/></section><section className="refPanel"><h2>Top Countries</h2>{countries.length?countries.map(([name,count])=><button className="refCountry" key={name} onClick={()=>setCountry(name)}><span>{name}</span><b>{count}</b><i><em style={{width:`${count/Math.max(1,visitors.length)*100}%`}}/></i></button>):<p>No geographic data received yet.</p>}</section></div>}<section className="refPanel"><header><div><h2>{traffic?'Traffic Activity':'Security Activity'}</h2><p>{range} · {sessions.length} recent collected sessions in current window · 5,000 session / 1,000 visitor display limit · refreshes every 15 seconds</p></div></header><ActivityGraph data={series} paused={paused} range={range}/></section>{!traffic&&<div className="refEqual"><section className="refPanel"><h2>Connected websites</h2>{data.websitesData?.length?data.websitesData.map(s=><Link className="connectedListItem" href={base+'/websites'} key={text(s.id)}><span>{text(s.domain)}</span><b>{text(s.integration_status)}</b></Link>):<p>No websites yet.</p>}<Link className="refPrimary" href={base+'/websites'}>Add or connect website</Link></section><section className="refPanel"><h2>Recent security events</h2>{data.threats?.length?data.threats.map(t=><Link className="connectedListItem" href={base+'/threat-center'} key={text(t.id)}>{text(t.type)}<b>{text(t.severity)}</b></Link>):<p>No threat events recorded.</p>}<Link href={base+'/database-security'} className="refPrimary">Open Database Security</Link></section></div>}<section className="refPanel"><header><div><h2>Visitor Stream {country&&`· ${country}`}</h2><p>Collected records, with no simulated traffic.</p></div>{country&&<button onClick={()=>setCountry('')}>Clear country filter</button>}</header>{visitors.length?<div className="refTable"><table><thead><tr>{['Country','City','IP address','Device','Browser','Last seen','Action'].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{visitors.filter(v=>!country||v.country===country).map(v=><tr key={v.id}><td>{v.country||'Unknown'}</td><td>{v.city||'Unknown'}</td><td>{v.ip_address||'Not captured'}</td><td>{v.device||'Unknown'}</td><td>{v.browser||'Unknown'}</td><td>{v.last_seen_at?new Date(v.last_seen_at).toLocaleString():'Unknown'}</td><td><button onClick={()=>setSelected(v)}>View session</button></td></tr>)}</tbody></table></div>:<p>No visitors collected during this period. <Link href={base+'/websites'}>Install the website collector to start monitoring →</Link></p>}</section>{selected&&<section className="refPanel moduleSelected"><header><h2>Visitor details</h2><button onClick={()=>setSelected(null)}>Close details</button></header><dl className="moduleDetail">{Object.entries(selected).map(([k,v])=><div key={k}><dt>{k}</dt><dd>{text(v)}</dd></div>)}</dl><h3>Recent pages</h3>{sessions.filter(s=>s.visitor_id===selected.id).map((s,i)=><p key={i}>{s.requested_url} · {s.status} · {new Date(s.occurred_at).toLocaleString()}</p>)}</section>}</div>;
 }

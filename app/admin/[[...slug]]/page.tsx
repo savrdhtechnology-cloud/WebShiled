@@ -5,18 +5,22 @@ import { requireAdmin } from "@/lib/auth";
 const supported = [
   "dashboard",
   "websites",
+  "live-traffic",
+  "threat-center",
   "database-security",
   "fix-center",
-  "security-events",
-  "plans",
-  "support-tickets",
-  "system-settings"
+  "firewall",
+  "analytics",
+  "reports",
+  "alerts",
+  "appearance",
+  "settings",
+  "support"
 ] as const;
 
 export default async function AdminPage({ params }: { params: Promise<{ slug?: string[] }> }) {
   const { slug } = await params;
   if (!slug?.length) redirect("/admin/dashboard");
-
   const current = slug[0];
   if (!supported.includes(current as (typeof supported)[number])) notFound();
 
