@@ -8,7 +8,7 @@ const SCRIPT = String.raw`(() => {
     const siteKey = script && script.getAttribute("data-site-key");
     if (!siteKey) return;
 
-    const endpoint = "https://webshield-savrdh-technology.vercel.app/api/collect";
+    const endpoint = script && script.src\n      ? new URL("./api/collect", script.src).href\n      : "https://savrdhtechnologies.com/webshield/api/collect";
     const storageKey = "webshield:visitor:" + siteKey;
     let visitorKey = "";
     try {
