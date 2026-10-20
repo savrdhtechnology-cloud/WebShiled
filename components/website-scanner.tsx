@@ -64,6 +64,8 @@ export function WebsiteScanner({publicScan=false,initialUrl="",autoScan=false,in
   const [scan, setScan] = useState<ScanResult | null>(initialScan||null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [history,setHistory]=useState<Array<{id:string;created_at:string;security_score:number|null;overall_risk:string|null;status:string}>>([]);
+  const [historyError,setHistoryError]=useState("");
 
   const [tab,setTab]=useState('findings');
   const [severity,setSeverity]=useState('ALL');
@@ -90,6 +92,7 @@ export function WebsiteScanner({publicScan=false,initialUrl="",autoScan=false,in
       const result = data.scan as ScanResult;
       if(!result?.hostname||!Array.isArray(result.findings)||!Array.isArray(result.headers)||typeof result.securityScore!=="number")throw new Error("The scanner returned an incomplete report. Please try again.");
       setScan(result);
+      void refreshHistory();
       try {
         window.localStorage.setItem("webshield:last-scan", JSON.stringify(result));
         window.dispatchEvent(new Event("webshield:scan-updated"));
@@ -101,6 +104,16 @@ export function WebsiteScanner({publicScan=false,initialUrl="",autoScan=false,in
     }
   }
 
+  async function refreshHistory() {
+    if (publicScan) return;
+    try {
+      const r=await fetch(apiPath("/api/scan"),{cache:"no-store"});
+      const b=await r.json();
+      if(!r.ok||!b.ok)throw new Error(b.error||"Could not load scan history.");
+      setHistory(b.scans||[]);setHistoryError("");
+    } catch(e){setHistoryError(e instanceof Error?e.message:"History unavailable.");}
+  }
+  useEffect(()=>{void refreshHistory()},[publicScan]);
   const order=['CRITICAL','HIGH','MEDIUM','LOW','INFO'];
   const findings=scan?.findings.filter(f=>severity==='ALL'||f.severity===severity).sort((a,b)=>order.indexOf(a.severity)-order.indexOf(b.severity))||[];
   return <article className="websiteScanner" aria-busy={loading}>
@@ -122,6 +135,7 @@ export function WebsiteScanner({publicScan=false,initialUrl="",autoScan=false,in
         {tab==='coverage'&&<><h3>Protection coverage</h3><p>A passive scan checks public response posture. Continuous monitoring and protection need a connected collector or traffic provider.</p><dl className="scannerTechnical">{Object.entries(scan.capabilities).map(([k,v])=><div key={k}><dt>{capabilityLabel(k)}</dt><dd><span className={'scannerSeverity '+(v.includes('REQUIRES')?'medium':'safe')}>{v.replaceAll('_',' ')}</span></dd></div>)}</dl><a className="scannerProtect" href="/app/websites">Connect this website for monitoring →</a></>}
         </section><p className="scannerNote">{scan.note}</p>
       </div>}
+      {!publicScan&&<section className="scannerResults"><div className="scannerReportHead"><div><h3>Saved Scan History</h3><p>Reports stored in your WebShield workspace</p></div><button type="button" onClick={()=>void refreshHistory()}>Refresh</button></div>{historyError&&<p role="alert">{historyError}</p>}{history.length?history.map(h=><div className="scannerControl" key={h.id}><strong>{new Date(h.created_at).toLocaleString()}</strong> · Score {h.security_score??"—"}/100 · {h.overall_risk||"Unknown"} · {h.status}</div>):<p className="scannerNote">No saved scans yet. Verify a website and run a scan to create the first report.</p>}</section>}
       {!scan&&!loading&&!error&&<p className="scannerNote">Enter a public website URL to inspect its HTTPS, response headers and publicly exposed configuration.</p>}
     </div>
   </article>;
