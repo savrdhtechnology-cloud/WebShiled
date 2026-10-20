@@ -5,6 +5,10 @@ import { redirect } from "next/navigation";
 import type { AppUser, Role } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
 
+export async function createDemoSession(): Promise<never> {
+  throw new Error("Demo authentication is disabled.");
+}
+
 export async function getCurrentUser(): Promise<AppUser | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
