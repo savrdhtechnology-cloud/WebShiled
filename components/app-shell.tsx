@@ -5,6 +5,7 @@ import { Logo } from "@/components/logo";
 import type { AppUser } from "@/lib/types";
 
 function navIcon(slug: string) {
+  if (slug.includes("database") || slug.includes("fix-center")) return "lock";
   if (slug.includes("visitor") || slug.includes("client") || slug === "users" || slug === "team" || slug.includes("device") || slug.includes("browser") || slug.includes("session")) return "visitors";
   if (slug.includes("threat") || slug.includes("security") || slug.includes("suspicious") || slug.includes("brute") || slug.includes("xss") || slug.includes("sql") || slug.includes("ddos")) return "threat";
   if (slug.includes("firewall") || slug.includes("rule") || slug.includes("block") || slug.includes("rate") || slug.includes("filter") || slug.includes("bot-protection")) return "firewall";

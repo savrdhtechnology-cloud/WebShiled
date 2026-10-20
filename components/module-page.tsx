@@ -1,17 +1,27 @@
 import Link from "next/link";
 import { BackendResource } from "@/components/backend-resource";
 import { BackendWebsites } from "@/components/backend-websites";
+import { DatabaseSecurity } from "@/components/database-security";
 import { LiveTrafficIntelligencePage, PreIntegrationIntelligence } from "@/components/pre-integration-intelligence";
 
 function SettingsPage({admin=false}:{admin?:boolean}){
-  return <div className="pageWrap"><div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> Settings</div><h1>Settings</h1><p>Workspace and protection settings for {admin?"administration":"your organization"}.</p></div><span className="statusTag safe">BACKEND READY</span></div><article className="panel"><div className="panelHead"><div><h3>Security defaults</h3><p>Only verified websites should be eligible for connected protection. Database access is tenant-isolated with RLS.</p></div></div><div className="settingsGrid">{["Require website verification before protection","Store firewall rules in backend","Use role-based access control","Do not display fake telemetry"].map(x=><div className="toggleRow" key={x}><b>{x}</b><i className="toggle on"/></div>)}</div></article></div>;
+  return <div className="pageWrap"><div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> Settings</div><h1>Settings</h1><p>Workspace and protection settings for {admin?"administration":"your organization"}.</p></div><span className="statusTag safe">BACKEND READY</span></div><article className="panel"><div className="panelHead"><div><h3>Security defaults</h3><p>Only verified websites should be eligible for connected protection. Database access is tenant-isolated with RLS.</p></div></div><div className="settingsGrid">{["Require website verification before protection","Store firewall rules in backend","Use role-based access control","Encrypt database provider credentials","Require approval before database remediation","Do not display fake telemetry"].map(x=><div className="toggleRow" key={x}><b>{x}</b><i className="toggle on"/></div>)}</div></article></div>;
 }
 
 function ThreatPage(){
   return <div className="pageWrap"><div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> Threat Center</div><h1>Threat Center</h1><p>Pre-integration scan findings are shown first. Real attack events appear below only after traffic/log integration.</p></div><span className="statusTag medium">SCAN + CONNECTED EVENTS</span></div><PreIntegrationIntelligence compact/><div style={{marginTop:16}}><BackendResource resource="threats" title="Connected Threat Events" description="Real threat detections stored in WebShield threat_events after a traffic collector/provider is connected."/></div></div>;
 }
 
+function DatabasePage({admin=false,fixes=false}:{admin?:boolean;fixes?:boolean}){
+  return <div className="pageWrap">
+    <div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> {admin?"Administration":"Security Operations"}</div><h1>{fixes?"Database Fix Center":"Database Security"}</h1><p>{fixes?"Review, approve and track supported database security remediations.":"Audit Supabase/Postgres security posture from access controls through storage exposure, with controlled remediation."}</p></div><span className="statusTag safe">{fixes?"APPROVAL REQUIRED":"DATABASE PROTECTION"}</span></div>
+    <DatabaseSecurity mode={fixes?"fixes":"security"} admin={admin}/>
+  </div>;
+}
+
 export function ClientModule({slug}:{slug:string}){
+  if(slug==="database-security") return <DatabasePage/>;
+  if(slug==="fix-center") return <DatabasePage fixes/>;
   if(slug==="live-visitors") return <LiveTrafficIntelligencePage/>;
   if(slug==="threat-center") return <ThreatPage/>;
   if(slug==="firewall") return <BackendResource resource="firewall" title="Firewall" description="Database-backed firewall policy. Provider enforcement is shown only when a real provider rule is connected." allowFirewallCreate/>;
@@ -24,6 +34,8 @@ export function ClientModule({slug}:{slug:string}){
 
 export function AdminModule({slug}:{slug:string}){
   if(slug==="websites") return <div className="pageWrap"><div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> Administration</div><h1>Website Security Management</h1><p>Add, connect, verify and remove websites from the current WebShield workspace.</p></div><span className="statusTag safe">LIVE WEBSITE CONTROL</span></div><BackendWebsites/></div>;
+  if(slug==="database-security") return <DatabasePage admin/>;
+  if(slug==="fix-center") return <DatabasePage admin fixes/>;
   if(slug==="security-events") return <BackendResource resource="threats" title="Security Events" description="Threat and security events available to the current workspace."/>;
   if(slug==="plans") return <BackendResource resource="billing" title="Plans & Billing" description="Current subscription and plan limits from Supabase."/>;
   if(slug==="support-tickets") return <BackendResource resource="support" title="Support" description="Support tickets stored in the WebShield backend."/>;
