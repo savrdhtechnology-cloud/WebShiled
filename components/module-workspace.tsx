@@ -122,7 +122,7 @@ export function ConnectedCommandCenter({base='/app'}:{base?:string}){
 
 type Session={website_id:string;occurred_at:string;visitor_id?:string;status?:string;requested_url?:string};
 type Visitor={id:string;website_id:string;country?:string;city?:string;ip_address?:string;device?:string;browser?:string;last_seen_at?:string};
-type Dashboard={metrics?:Record<string,number>;websitesData?:Array<{id:string;domain:string;integration_status?:string|null;last_event_at?:string|null}>;visitorsData?:Visitor[];sessionsData?:Session[];threats?:Row[];alerts?:Row[]};
+type Dashboard={metrics?:Record<string,number>;websitesData?:Array<{id:string;domain:string;verified_at?:string|null;integration_status?:string|null;last_event_at?:string|null}>;visitorsData?:Visitor[];sessionsData?:Session[];threats?:Row[];alerts?:Row[]};
 export function ConnectedOverview({page,base='/app'}:{page:string;base?:string}){
  const [siteId,setSiteId]=useState('ALL');
  const [data,setData]=useState<Dashboard|null>(null),[error,setError]=useState(''),[paused,setPaused]=useState(false),[range,setRange]=useState('Last 24 hours'),[country,setCountry]=useState(''),[selected,setSelected]=useState<Visitor|null>(null),[refresh,setRefresh]=useState(0);
