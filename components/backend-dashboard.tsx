@@ -32,6 +32,8 @@ type DashboardData = {
   threatsCount?: number;
   openAlerts?: number;
   openTickets?: number;
+  visitors?: number;
+  sessions?: number;
 };
 type StoredScan = {
   hostname:string; securityScore:number; grade:string; overallRisk:string; scannedAt:string;
@@ -151,17 +153,69 @@ export function BackendDashboard({ admin = false }: { admin?: boolean }) {
   }, [admin]);
 
   if (admin) {
+    const sites=data?.websitesData||[];
+    const threats=data?.threats||[];
+    const alerts=data?.alerts||[];
+    const connected=sites.filter(s=>s.integration_status==="COLLECTOR_CONNECTED").length;
+    const verified=sites.filter(s=>Boolean(s.verified_at)).length;
     const stats = data ? [
-      ["Websites", String(data.websites ?? 0), "Database records", "globe"],
-      ["Threat Events", String(data.threatsCount ?? 0), "Database records", "threat"],
+      ["Websites", String(data.websites ?? 0), `${connected} connected · ${verified} verified`, "globe"],
+      ["Visitors", String(data.visitors ?? 0), "Real collected visitors", "visitors"],
+      ["Sessions", String(data.sessions ?? 0), "Captured page sessions", "chart"],
+      ["Threat Events", String(data.threatsCount ?? 0), "Stored detections", "threat"],
       ["Open Alerts", String(data.openAlerts ?? 0), "Needs review", "bell"],
-      ["Open Tickets", String(data.openTickets ?? 0), "Support queue", "visitors"]
+      ["Support", String(data.openTickets ?? 0), "Open tickets", "settings"]
     ] : [];
+
     return <div className="pageWrap">
-      <div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> Administration</div><h1>Admin Dashboard</h1><p>Scan websites, review external security posture and manage connected WebShield backend records.</p></div><span className="statusTag safe">SCAN + BACKEND</span></div>
-      <WebsiteScanner/><PreIntegrationIntelligence compact/>
-      {loading&&<article className="panel" style={{marginTop:16}}><p>Loading connected backend data…</p></article>}{error&&<Notice message={error}/>} 
-      {data&&<><div className="metricGrid compact" style={{marginTop:16}}>{stats.map(([label,value,note,icon])=><article className="metricCard" key={label}><div className="metricTop"><span>{label}</span><div className="metricIcon"><Icon name={icon}/></div></div><strong>{value}</strong><small>{note}</small></article>)}</div><article className="panel" style={{marginTop:16}}><div className="panelHead"><div><h3>Essential administration</h3><p>Only high-value platform modules are kept in the sidebar.</p></div></div><div className="endpointGrid"><Link href="/admin/websites">Websites</Link><Link href="/admin/security-events">Security Events</Link><Link href="/admin/plans">Plans & Billing</Link><Link href="/admin/support-tickets">Support</Link><Link href="/admin/system-settings">Settings</Link></div></article></>}
+      <div className="pageHeader"><div><div className="breadcrumbs">WebShield <span>/</span> Administration</div><h1>Security Operations Admin</h1><p>Monitor connected websites, security events, alerts and traffic health from one control center.</p></div><span className="statusTag safe">LIVE BACKEND</span></div>
+
+      <WebsiteScanner/>
+
+      {loading&&<article className="panel" style={{marginTop:16}}><p>Loading connected backend data…</p></article>}
+      {error&&<Notice message={error}/>}
+      {data&&<>
+        <div className="metricGrid compact" style={{marginTop:16}}>
+          {stats.map(([label,value,note,icon])=><article className="metricCard" key={label}><div className="metricTop"><span>{label}</span><div className="metricIcon"><Icon name={icon}/></div></div><strong>{value}</strong><small>{note}</small></article>)}
+        </div>
+
+        <div className="dashboardGrid equal" style={{marginTop:16}}>
+          <article className="panel">
+            <div className="panelHead"><div><h3>Website Fleet</h3><p>Connection, verification and recent collector status by website.</p></div><Link href="/admin/websites" className="ghostBtn small">Manage Websites</Link></div>
+            <div style={{display:"grid",gap:9,marginTop:10}}>
+              {sites.length?sites.slice(0,8).map(site=><div key={site.id} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"center",padding:"11px 0",borderBottom:"1px solid rgba(120,190,225,.08)"}}>
+                <div style={{minWidth:0}}><b style={{display:"block",fontSize:11,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{site.domain}</b><small style={{display:"block",marginTop:4,color:"#6f8da1"}}>SSL {site.ssl_status||"UNKNOWN"} · {site.last_event_at?`last traffic ${ago(site.last_event_at)}`:"no traffic event yet"}</small></div>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}><span className={`statusTag ${site.integration_status==="COLLECTOR_CONNECTED"?"safe":"medium"}`}>{site.integration_status==="COLLECTOR_CONNECTED"?"CONNECTED":"SETUP"}</span><span className={`statusTag ${site.verified_at?"safe":"medium"}`}>{site.verified_at?"VERIFIED":"UNVERIFIED"}</span></div>
+              </div>):<div className="cockpitEmpty">No websites added yet.</div>}
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panelHead"><div><h3>Protection Readiness</h3><p>Current website onboarding state across the workspace.</p></div><Icon name="shield"/></div>
+            <div className="readinessSteps" style={{marginTop:12}}>
+              {[
+                ["Website inventory",sites.length>0,`${sites.length} sites`],
+                ["Ownership verified",verified>0,`${verified} verified`],
+                ["Traffic collectors",connected>0,`${connected} connected`],
+                ["Threat telemetry",Boolean((data.threatsCount??0)>0),`${data.threatsCount??0} events`],
+                ["Alert review",Boolean((data.openAlerts??0)===0),data.openAlerts?`${data.openAlerts} open`:"clear"]
+              ].map(([label,done,note],i)=><div className={done?"done":""} key={String(label)}><i>{done?<Icon name="check" size={12}/>:i+1}</i><span>{label}<small style={{display:"block",marginTop:2}}>{note}</small></span><b>{done?"READY":"PENDING"}</b></div>)}
+            </div>
+          </article>
+        </div>
+
+        <div className="dashboardGrid equal" style={{marginTop:16}}>
+          <article className="panel">
+            <div className="panelHead"><div><h3>Recent Security Events</h3><p>Latest real threat records from connected traffic.</p></div><Link href="/admin/security-events" className="ghostBtn small">View all</Link></div>
+            {threats.length?threats.slice(0,6).map(t=><div className="eventRow" key={t.id}><span className={`activityAlert ${String(t.severity||"low").toLowerCase()}`}><Icon name="threat" size={14}/></span><div><b>{t.type||"Threat event"}</b><small>{t.target_url?safePath(t.target_url):"Unknown target"} · risk {t.risk_score??0}</small></div><span className="eventTime">{ago(t.occurred_at)}</span></div>):<div className="cleanState compact"><span><Icon name="check" size={18}/></span><b>No threat events recorded</b></div>}
+          </article>
+
+          <article className="panel">
+            <div className="panelHead"><div><h3>Open Alerts</h3><p>Items that need admin attention.</p></div><Link href="/app/alerts" className="ghostBtn small">Alerts</Link></div>
+            {alerts.length?alerts.slice(0,6).map(a=><div className="eventRow" key={a.id}><span className={`activityAlert ${String(a.severity||"low").toLowerCase()}`}><Icon name="bell" size={14}/></span><div><b>{a.title||a.type||"Security alert"}</b><small>{a.message||"No additional details"}</small></div><span className="eventTime">{a.acknowledged_at?"ACK":"OPEN"}</span></div>):<div className="cleanState compact"><span><Icon name="check" size={18}/></span><b>No open alerts</b></div>}
+          </article>
+        </div>
+      </>}
     </div>;
   }
 
