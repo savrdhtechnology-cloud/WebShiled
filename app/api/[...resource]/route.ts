@@ -131,13 +131,29 @@ export async function GET(_: NextRequest, context: { params: Promise<{ resource:
     }
 
     if (key === "admin") {
-      const [websites, threats, openAlerts, tickets] = await Promise.all([
+      const [websites, threats, openAlerts, tickets, websiteRows, threatRows, alertRows, visitors, sessions] = await Promise.all([
         countRows(client, "websites", orgId),
         countRows(client, "threat_events", orgId),
         countRows(client, "alerts", orgId, q => q.is("acknowledged_at", null)),
-        countRows(client, "support_tickets", orgId, q => q.neq("status", "RESOLVED"))
+        countRows(client, "support_tickets", orgId, q => q.neq("status", "RESOLVED")),
+        client.from("websites").select("id,domain,status,verified_at,ssl_status,integration_status,last_event_at,created_at,updated_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(50),
+        client.from("threat_events").select("id,website_id,type,severity,source_ip,target_url,risk_score,status,action_taken,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(12),
+        client.from("alerts").select("id,website_id,type,severity,title,message,acknowledged_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(12),
+        countRows(client, "visitors", orgId),
+        countRows(client, "visitor_sessions", orgId)
       ]);
-      return json({ organizationId: orgId, websites, threats, openAlerts, openTickets: tickets });
+      return json({
+        organizationId: orgId,
+        websites,
+        threatsCount: threats,
+        openAlerts,
+        openTickets: tickets,
+        visitors,
+        sessions,
+        websitesData: websiteRows.data || [],
+        threats: threatRows.data || [],
+        alerts: alertRows.data || []
+      });
     }
 
     return json({ code: "NOT_FOUND", message: "Unknown API resource." }, 404);
