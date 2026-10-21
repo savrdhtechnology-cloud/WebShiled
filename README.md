@@ -9,7 +9,7 @@ served under `/webshield`, backed by the WebShield Supabase project
 | Module | What it actually does | Needs |
 | --- | --- | --- |
 | **Websites & Scan** | Passive posture scan (HTTPS, redirects, security headers, cookies, CORS, exposed `.env`/`.git`, SPF/DMARC). Results are saved per website (`security_scan_runs`, `websites.security_score`). | — |
-| **Continuous monitoring** | Every 15 min (GitHub Actions → `/api/cron/monitor`, plus a daily Vercel Cron): uptime + response time, TLS certificate validity/expiry, posture re-scan when due (default daily). Alerts: website down (2 failed checks), SSL invalid / expiring ≤14 days, new HIGH/CRITICAL finding, score drop ≥10. Auto-resolves when fixed. | `CRON_SECRET`, `WEBSHIELD_SUPABASE_SECRET_KEY` |
+| **Continuous monitoring** | Every 15 min (GitHub Actions → `/api/cron/monitor`, plus a daily Vercel Cron): uptime + response time, TLS certificate validity/expiry, posture re-scan when due (default daily). Alerts: website down (2 failed checks), SSL invalid / expiring ≤14 days, new HIGH/CRITICAL finding, score drop ≥10. Auto-resolves when fixed. | `WEBSHIELD_SUPABASE_SECRET_KEY` |
 | **Browser collector** | `<script src=".../webshield.js" data-site-key>` — page views, visitors, bots → Live Traffic. | — |
 | **Server protection + Firewall** | Website middleware calls `POST /api/ingest` per request. WebShield detects SQL injection, XSS, path traversal, command injection, secret-file probes, scanner tools, request floods and login brute force; applies IP rules and custom firewall rules; returns `ALLOW / RATE_LIMIT / BLOCK`, which the middleware enforces. Attacks create threat events and alerts. | `WEBSHIELD_SUPABASE_SECRET_KEY`; server key per site |
 | **Database Security** | Audits a Supabase project through a scoped Management API token: RLS coverage, anonymous write grants, broad anon policies, public SECURITY DEFINER functions, public buckets. Re-audits daily; new HIGH/CRITICAL findings alert. | Management API token |
@@ -27,15 +27,17 @@ served under `/webshield`, backed by the WebShield Supabase project
    | Variable | Purpose |
    | --- | --- |
    | `WEBSHIELD_SUPABASE_SECRET_KEY` | Supabase **secret** API key of the WebShield project (Settings → API Keys). Server only; used by cron, ingest and alert delivery. |
-   | `CRON_SECRET` | Random string ≥16 chars. Vercel Cron sends it automatically. |
+   | `CRON_SECRET` | Optional. Random string ≥16 chars for the daily Vercel Cron. |
    | `WEBSHIELD_ENCRYPTION_KEY` | ≥32 chars, encrypts stored database tokens. Must stay stable. |
    | `RESEND_API_KEY`, `ALERT_EMAIL_FROM` | Email alerts, e.g. `WebShield <alerts@your-verified-domain>`. |
    | `WEBHOOK_SECRET` | Optional; signs webhook bodies (`x-webshield-signature: sha256=…`). |
    | `NEXT_PUBLIC_APP_URL` | e.g. `https://savrdhtechnologies.com/webshield` (links in emails). |
 
-   Scheduling: `vercel.json` runs the cycle once a day (Vercel Hobby limit).
-   `.github/workflows/monitor.yml` runs it every 15 minutes — add the GitHub
-   repository secret `WEBSHIELD_CRON_SECRET` with the same value as `CRON_SECRET`.
+   Scheduling: `.github/workflows/monitor.yml` runs the cycle every 15 minutes
+   and authenticates with a GitHub-signed OIDC token (no GitHub secret needed;
+   only `main` of this repository is accepted — override the list with
+   `WEBSHIELD_MONITOR_REPOSITORIES`). `vercel.json` adds a daily Vercel Cron,
+   which needs `CRON_SECRET`; without it the daily run is simply rejected.
 3. **Add your websites** (Websites & Scan → Add Website). Monitoring starts
    automatically. Use **Run checks** for an immediate check.
 4. **Server protection** (recommended for every site you own): open a website →

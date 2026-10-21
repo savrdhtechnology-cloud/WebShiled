@@ -107,6 +107,7 @@ async function channelsFor(db: Db, organizationId: string): Promise<Channels> {
     .eq("organization_id", organizationId)
     .maybeSingle();
   if (data) return { ...data, min_severity: normalizeSeverity(data.min_severity) } as Channels;
+  if (!process.env.RESEND_API_KEY) return { enabled: true, email_recipients: [], webhook_url: null, min_severity: "HIGH" };
   // No explicit settings: email workspace owners/admins about HIGH and CRITICAL alerts.
   return { enabled: true, email_recipients: await ownerEmails(organizationId), webhook_url: null, min_severity: "HIGH" };
 }
@@ -184,7 +185,8 @@ async function notify(db: Db, input: AlertInput & { severity: AlertSeverity }, a
   if (!channels.enabled || !atLeast(input.severity, channels.min_severity)) return 0;
   let sent = 0;
   const recipients = (channels.email_recipients || []).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)).slice(0, 10);
-  if (recipients.length) {
+  // Email is optional: without RESEND_API_KEY / ALERT_EMAIL_FROM alerts stay in the dashboard only.
+  if (recipients.length && process.env.RESEND_API_KEY && process.env.ALERT_EMAIL_FROM) {
     try { await sendEmail(recipients, input); sent++; await record(input.organizationId, alertId, "EMAIL", recipients.join(","), true); }
     catch (error) { await record(input.organizationId, alertId, "EMAIL", recipients.join(","), false, error instanceof Error ? error.message : "Email failed"); }
   }
