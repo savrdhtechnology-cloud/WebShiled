@@ -56,3 +56,19 @@
 .connectWizardReadiness small{display:block;color:#7fa5c2;font-size:9px;margin-top:4px}
 @media(max-width:1000px){.connectWizardSteps{grid-template-columns:repeat(3,1fr)}.connectWizardAuditMetrics{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){.connectWizardSteps{grid-template-columns:repeat(2,1fr)}.connectWizardAuditMetrics{grid-template-columns:1fr}}
+
+/* Unified console presentation for every authenticated module. */
+.referenceApp .connectedModule .panel{background:linear-gradient(135deg,#031d2c,#00121e);border:1px solid var(--rl);border-radius:var(--studio-radius,12px);box-shadow:none;color:inherit}
+.referenceApp .connectedModule .panelHead{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px}
+.referenceApp .connectedModule .panelHead h3{font-size:16px;font-weight:600;color:#e4f2ff}
+.referenceApp .connectedModule .panelHead p{font-size:11px;color:#7ea7c7;line-height:1.6}
+.referenceApp .connectedModule .metricCard{background:linear-gradient(135deg,#092739,#00121e);border:1px solid #16445b;border-radius:var(--studio-radius,12px)}
+.referenceApp .connectedModule .metricCard strong{font-size:30px;color:#edf6ff}
+.referenceApp .connectedModule .metricGrid{gap:14px}
+.referenceApp .connectedModule :is(input,textarea){background:#00131f;border:1px solid #1c4c67;border-radius:7px;padding:11px;color:#d5edff}
+.referenceApp .connectedModule table{width:100%;border-collapse:collapse;font-size:11px}
+.referenceApp .connectedModule th{text-align:left;font-size:9px;letter-spacing:1px;color:#78a5c4;padding:13px 10px;border-bottom:1px solid #153a50}
+.referenceApp .connectedModule td{padding:14px 10px;border-bottom:1px solid #103044;color:#b7d4e9}
+.referenceApp .connectedModule .dashboardGrid{gap:16px}
+.referenceApp .workspaceModule>.moduleToolbar{margin-bottom:18px}
+.referenceApp .studioPage>header h2{font-size:24px}
