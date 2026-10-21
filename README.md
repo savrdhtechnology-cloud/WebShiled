@@ -64,6 +64,11 @@ served under `/webshield`, backed by the WebShield Supabase project
    forms) under "Tables where public forms may insert without login", so normal
    form submissions are not flagged.
 
+## Deployment
+
+The Vercel `webshield` project is connected to this repository: every push to
+`main` deploys production automatically.
+
 ## Development
 
 ```bash
