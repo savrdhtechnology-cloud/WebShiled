@@ -56,3 +56,36 @@
 .connectWizardReadiness small{display:block;color:#7fa5c2;font-size:9px;margin-top:4px}
 @media(max-width:1000px){.connectWizardSteps{grid-template-columns:repeat(3,1fr)}.connectWizardAuditMetrics{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){.connectWizardSteps{grid-template-columns:repeat(2,1fr)}.connectWizardAuditMetrics{grid-template-columns:1fr}}
+
+/* Unified console presentation for every authenticated module. */
+.referenceApp .connectedModule .panel{background:linear-gradient(135deg,#031d2c,#00121e);border:1px solid var(--rl);border-radius:var(--studio-radius,12px);box-shadow:none;color:inherit}
+.referenceApp .connectedModule .panelHead{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px}
+.referenceApp .connectedModule .panelHead h3{font-size:16px;font-weight:600;color:#e4f2ff}
+.referenceApp .connectedModule .panelHead p{font-size:11px;color:#7ea7c7;line-height:1.6}
+.referenceApp .connectedModule .metricCard{background:linear-gradient(135deg,#092739,#00121e);border:1px solid #16445b;border-radius:var(--studio-radius,12px)}
+.referenceApp .connectedModule .metricCard strong{font-size:30px;color:#edf6ff}
+.referenceApp .connectedModule .metricGrid{gap:14px}
+.referenceApp .connectedModule :is(input,textarea){background:#00131f;border:1px solid #1c4c67;border-radius:7px;padding:11px;color:#d5edff}
+.referenceApp .connectedModule table{width:100%;border-collapse:collapse;font-size:11px}
+.referenceApp .connectedModule th{text-align:left;font-size:9px;letter-spacing:1px;color:#78a5c4;padding:13px 10px;border-bottom:1px solid #153a50}
+.referenceApp .connectedModule td{padding:14px 10px;border-bottom:1px solid #103044;color:#b7d4e9}
+.referenceApp .connectedModule .dashboardGrid{gap:16px}
+.referenceApp .workspaceModule>.moduleToolbar{margin-bottom:18px}
+.referenceApp .studioPage>header h2{font-size:24px}
+
+/* Reference screenshot composition: cyan light, map hero and compact telemetry. */
+.referenceApp .refGridGlobe{width:62%;height:220px;right:0;top:-35px;opacity:.7;background:radial-gradient(ellipse at 75% 25%,#00aaff30,transparent 62%),url('/webshield/world-land.svg') center/cover no-repeat;mask-image:linear-gradient(90deg,transparent,#000 35%);pointer-events:none}
+.referenceApp .refGridGlobe:after{box-shadow:0 0 22px #00aaff44,inset 0 0 35px #00aaff22}
+.referenceApp .refRing{box-shadow:0 0 25px #00e7a414;filter:drop-shadow(0 0 6px #00e7a420)}
+.referenceApp .refMetricIcon{box-shadow:inset 0 0 16px #00cfff12,0 0 18px #00cfff12}
+.refDatabaseMetrics{grid-template-columns:repeat(5,minmax(0,1fr))}
+.refTrafficBreakdowns{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0}
+.refTrafficBreakdowns .refPanel{padding:14px}.refTrafficBreakdowns .refPanel h2{font-size:12px}
+.refTrafficBreakdowns .refPanel>header{margin-bottom:12px}.refTrafficBreakdowns .refPanel>header>svg{width:19px}
+.previewSplit{display:flex;align-items:center;gap:12px}.previewSplit>div:last-child{flex:1;min-width:0}
+.previewDonut{width:92px;height:92px;border-radius:50%;background:conic-gradient(#00bfff 0 56%,#00e7a4 56% 88%,#ffb02e 88% 96%,#a64cff 96%);padding:9px;flex-shrink:0}
+.previewDonut>b{display:flex;align-items:center;justify-content:center;flex-direction:column;border-radius:50%;width:100%;height:100%;background:#001523;font-size:21px}.previewDonut small{font-size:8px;color:#7ea7c7;font-weight:400}
+.previewSplitRow{display:flex;align-items:center;gap:6px;font-size:9px;margin:7px 0;position:relative}.previewSplitRow>i{width:6px;height:6px;border-radius:50%;flex-shrink:0}.previewSplitRow>span{flex:1}.previewSplitRow>b{font-weight:500}.previewSplitRow>em{height:4px;max-width:40%;border-radius:4px}
+@media(max-width:1250px){.refDatabaseMetrics{grid-template-columns:repeat(3,minmax(0,1fr))}.previewSplit{flex-wrap:wrap}}
+@media(max-width:1000px){.refDatabaseMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.previewSplit{flex-wrap:nowrap}}
+@media(max-width:760px){.refTrafficBreakdowns{grid-template-columns:1fr}.refDatabaseMetrics{grid-template-columns:1fr 1fr}}

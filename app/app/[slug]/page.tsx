@@ -2,16 +2,14 @@ import { notFound, redirect } from "next/navigation";
 import { featureCatalog } from "@/lib/feature-catalog";
 import { ReferenceConsole } from "@/components/reference-console";
 import { requireUser } from "@/lib/auth";
+import { consolePage, isConsolePage } from "@/lib/console-pages";
 import { withBasePath } from "@/lib/base-path";
 
-const supported = [
-  "dashboard","websites","database-security","fix-center","live-traffic","live-visitors",
-  "threat-center","firewall","analytics","reports","alerts","appearance","settings","support"
-] as const;
+
 
 export default async function ClientPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  if (!supported.includes(slug as (typeof supported)[number])) {
+  if (!isConsolePage(slug)) {
     const feature = featureCatalog[slug];
     if (!feature) notFound();
     const group = feature.group.toLowerCase();
@@ -25,5 +23,5 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
     redirect(withBasePath("/app/" + destination));
   }
   const user = await requireUser();
-  return <ReferenceConsole page={slug === "live-visitors" ? "live-traffic" : slug} connected account={{ name: user.name, role: user.role }} />;
+  return <ReferenceConsole page={consolePage(slug)} connected appearanceScope="workspace" account={{ name: user.name, role: user.role }} />;
 }

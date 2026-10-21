@@ -3,3 +3,13 @@
 @media(max-width:760px){.trafficGraph{height:280px;padding-left:32px}.trafficGraphPlot{height:195px}.trafficGraphTimes{font-size:7px}.trafficGraphLegend{font-size:8px;gap:10px}.trafficGraphScale{bottom:75px;font-size:8px}.visitorMap{min-height:220px}.visitorMap>svg{min-height:190px}.visitorMapLegend{gap:9px;font-size:7px}.visitorMapControls{bottom:30px}.moduleForm{grid-template-columns:1fr}.moduleToolbar{gap:7px}.moduleToolbar button{font-size:10px;padding:9px}.moduleDetail>div{grid-template-columns:100px 1fr}.connectedModule .pageWrap{padding:0}.connectedModule .pageHeader{flex-wrap:wrap}.connectedOverview .refEqual{grid-template-columns:1fr}.moduleMetric{min-height:110px}.refModal{padding:22px}.refModal .refActions{flex-direction:column}}
 @media(prefers-reduced-motion:reduce){.trafficGraph *,.visitorMap *,.moduleSelected{animation:none!important}}
 .referenceApp .refPanel[id]{scroll-margin-top:90px}.referenceApp .refMetric:focus-visible{outline:2px solid var(--studio-accent,#00d5ff);outline-offset:3px}
+
+.graphLiveSweep{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.graphLiveSweep:after{content:"";position:absolute;top:0;bottom:0;left:-20%;width:20%;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--studio-accent,#00c8ff) 12%,transparent));border-right:1px solid color-mix(in srgb,var(--studio-accent,#00c8ff) 60%,transparent);animation:graphTelemetrySweep calc(var(--studio-speed,8s)*.6) linear infinite}
+.graphWaiting{position:absolute;inset:0;display:flex;justify-content:center;align-items:center;flex-wrap:wrap;align-content:center;gap:8px;color:#b5d8ef;font-size:12px;pointer-events:none}
+.graphWaiting i{width:7px;height:7px;background:var(--studio-accent,#00c8ff);border-radius:50%;animation:graphTelemetryPulse 1.8s ease-in-out infinite}
+.graphWaiting small{width:100%;text-align:center;color:#739bb8;font-size:10px}
+.trafficGraph[data-paused=true] .graphLiveSweep:after,.trafficGraph[data-paused=true] .graphWaiting i{animation-play-state:paused}
+@keyframes graphTelemetrySweep{to{transform:translateX(600%)}}
+@keyframes graphTelemetryPulse{50%{opacity:.3;box-shadow:0 0 12px var(--studio-accent,#00c8ff)}}
+@media(prefers-reduced-motion:reduce){.graphLiveSweep:after,.graphWaiting i{animation:none}}

@@ -266,7 +266,7 @@ function StudioControls() {
   </div>;
 }
 
-export function AppearanceStudioPage() {
+export function AppearanceStudioPage({showHeader=true}:{showHeader?:boolean}) {
   const studio = useContext(StudioContext)!;
-  return <section className="studioPage"><header><span>APPEARANCE CONTROL</span><h1>Appearance Studio</h1><p>{studio.allowedScopes.length>1?'Control Landing and Super Admin styles independently, then publish the selected theme.':'Customise colours, backgrounds, motion and card effects for this workspace.'}</p></header><StudioControls/></section>;
+  return <section className="studioPage">{showHeader&&<header><span>APPEARANCE CONTROL</span><h2>Appearance Studio</h2><p>{studio.allowedScopes.length>1?'Control Landing and Super Admin styles independently, then publish the selected theme.':'Customise colours, backgrounds, motion and card effects for this workspace.'}</p></header>}<StudioControls/></section>;
 }
