@@ -72,3 +72,20 @@
 .referenceApp .connectedModule .dashboardGrid{gap:16px}
 .referenceApp .workspaceModule>.moduleToolbar{margin-bottom:18px}
 .referenceApp .studioPage>header h2{font-size:24px}
+
+/* Reference screenshot composition: cyan light, map hero and compact telemetry. */
+.referenceApp .refGridGlobe{width:62%;height:220px;right:0;top:-35px;opacity:.7;background:radial-gradient(ellipse at 75% 25%,#00aaff30,transparent 62%),url('/webshield/world-land.svg') center/cover no-repeat;mask-image:linear-gradient(90deg,transparent,#000 35%);pointer-events:none}
+.referenceApp .refGridGlobe:after{box-shadow:0 0 22px #00aaff44,inset 0 0 35px #00aaff22}
+.referenceApp .refRing{box-shadow:0 0 25px #00e7a414;filter:drop-shadow(0 0 6px #00e7a420)}
+.referenceApp .refMetricIcon{box-shadow:inset 0 0 16px #00cfff12,0 0 18px #00cfff12}
+.refDatabaseMetrics{grid-template-columns:repeat(5,minmax(0,1fr))}
+.refTrafficBreakdowns{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0}
+.refTrafficBreakdowns .refPanel{padding:14px}.refTrafficBreakdowns .refPanel h2{font-size:12px}
+.refTrafficBreakdowns .refPanel>header{margin-bottom:12px}.refTrafficBreakdowns .refPanel>header>svg{width:19px}
+.previewSplit{display:flex;align-items:center;gap:12px}.previewSplit>div:last-child{flex:1;min-width:0}
+.previewDonut{width:92px;height:92px;border-radius:50%;background:conic-gradient(#00bfff 0 56%,#00e7a4 56% 88%,#ffb02e 88% 96%,#a64cff 96%);padding:9px;flex-shrink:0}
+.previewDonut>b{display:flex;align-items:center;justify-content:center;flex-direction:column;border-radius:50%;width:100%;height:100%;background:#001523;font-size:21px}.previewDonut small{font-size:8px;color:#7ea7c7;font-weight:400}
+.previewSplitRow{display:flex;align-items:center;gap:6px;font-size:9px;margin:7px 0;position:relative}.previewSplitRow>i{width:6px;height:6px;border-radius:50%;flex-shrink:0}.previewSplitRow>span{flex:1}.previewSplitRow>b{font-weight:500}.previewSplitRow>em{height:4px;max-width:40%;border-radius:4px}
+@media(max-width:1250px){.refDatabaseMetrics{grid-template-columns:repeat(3,minmax(0,1fr))}.previewSplit{flex-wrap:wrap}}
+@media(max-width:1000px){.refDatabaseMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.previewSplit{flex-wrap:nowrap}}
+@media(max-width:760px){.refTrafficBreakdowns{grid-template-columns:1fr}.refDatabaseMetrics{grid-template-columns:1fr 1fr}}

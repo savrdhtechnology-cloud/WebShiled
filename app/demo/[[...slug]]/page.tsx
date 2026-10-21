@@ -1,9 +1,10 @@
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
+import { ReferenceConsole } from "@/components/reference-console";
 import { consolePage, isConsolePage } from "@/lib/console-pages";
-import { withBasePath } from "@/lib/base-path";
 
 export default async function DemoPage({params}:{params:Promise<{slug?:string[]}>}) {
   const {slug}=await params;
-  const page=slug?.[0]&&isConsolePage(slug[0])?consolePage(slug[0]):"dashboard";
-  redirect(withBasePath("/app/"+page));
+  const page=consolePage(slug?.[0]||"dashboard");
+  if(!isConsolePage(page)||Number(slug?.length)>1)notFound();
+  return <ReferenceConsole page={page} baseOverride="/demo" appearanceScope="demo"/>;
 }
