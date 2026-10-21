@@ -5,7 +5,7 @@ import { runMonitoringCycle } from "@/lib/monitoring/runner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 // "Run checks now" from the dashboard. Runs with the signed-in user's session,
 // so Row Level Security keeps the run inside that user's workspace.
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       organizationId: user.organizationId,
       websiteId: body.websiteId ? String(body.websiteId) : undefined,
       force: true,
-      budgetMs: 100_000,
+      budgetMs: 45_000,
       includeWebsites: scope !== "databases",
       includeDatabases: scope !== "websites"
     });

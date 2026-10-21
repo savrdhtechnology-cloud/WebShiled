@@ -5,7 +5,7 @@ import { runMonitoringCycle } from "@/lib/monitoring/runner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 function authorized(request: NextRequest) {
   const secret = process.env.CRON_SECRET || "";
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
   if (!adminConfigured()) return NextResponse.json({ ok: false, error: "WEBSHIELD_SUPABASE_SECRET_KEY is not configured." }, { status: 503 });
   try {
-    const report = await runMonitoringCycle(createAdminClient(), { budgetMs: 250_000 });
+    const report = await runMonitoringCycle(createAdminClient(), { budgetMs: 45_000 });
     return NextResponse.json({
       ok: true,
       summary: {
