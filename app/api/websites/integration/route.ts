@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -17,7 +18,7 @@ async function siteForUser(id: string) {
   const client = await createClient();
   const { data, error } = await client
     .from("websites")
-    .select("id,domain,status,verified_at,integration_status,collector_key,collector_enabled,last_event_at")
+    .select("id,domain,status,verified_at,integration_status,collector_key,collector_enabled,last_event_at,ingest_secret_hint,last_ingest_at")
     .eq("organization_id", user.organizationId)
     .eq("id", id)
     .maybeSingle();
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
       .from("websites")
       .update({ collector_enabled: true })
       .eq("id", site.id)
-      .select("id,domain,status,verified_at,integration_status,collector_key,collector_enabled,last_event_at")
+      .select("id,domain,status,verified_at,integration_status,collector_key,collector_enabled,last_event_at,ingest_secret_hint,last_ingest_at")
       .single();
     if (error) return out({ message: error.message }, 500);
     return out(data);
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       .from("websites")
       .update({ collector_enabled: false, integration_status: "NOT_CONNECTED" })
       .eq("id", site.id)
-      .select("id,domain,status,verified_at,integration_status,collector_key,collector_enabled,last_event_at")
+      .select("id,domain,status,verified_at,integration_status,collector_key,collector_enabled,last_event_at,ingest_secret_hint,last_ingest_at")
       .single();
     if (error) return out({ message: error.message }, 500);
     return out(data);
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
   if (action === "verify") {
     const { data: fresh, error: freshError } = await client
       .from("websites")
-      .select("id,domain,status,verified_at,integration_status,collector_key,collector_enabled,last_event_at")
+      .select("id,domain,status,verified_at,integration_status,collector_key,collector_enabled,last_event_at,ingest_secret_hint,last_ingest_at")
       .eq("id", site.id)
       .single();
     if (freshError) return out({ message: freshError.message }, 500);
@@ -107,10 +108,22 @@ export async function POST(request: NextRequest) {
       .from("websites")
       .update({ verified_at: fresh.verified_at || new Date().toISOString(), status: "CONNECTED", integration_status: "COLLECTOR_CONNECTED" })
       .eq("id", site.id)
-      .select("id,domain,status,verified_at,integration_status,collector_key,collector_enabled,last_event_at")
+      .select("id,domain,status,verified_at,integration_status,collector_key,collector_enabled,last_event_at,ingest_secret_hint,last_ingest_at")
       .single();
     if (error) return out({ message: error.message }, 500);
     return out(data);
+  }
+
+  if (action === "server_key") {
+    if (!["OWNER", "ADMIN"].includes(resolved.user.role)) return out({ message: "Owner or admin role required to create a server key." }, 403);
+    const secret = "wss_" + randomBytes(24).toString("hex");
+    const { error } = await client
+      .from("websites")
+      .update({ ingest_secret_hash: createHash("sha256").update(secret).digest("hex"), ingest_secret_hint: secret.slice(0, 8) + "…" + secret.slice(-4) })
+      .eq("id", site.id);
+    if (error) return out({ message: error.message }, 500);
+    // The secret is returned once and never stored in plain text.
+    return out({ id: site.id, siteKey: site.collector_key, serverKey: secret });
   }
 
   return out({ message: "Unsupported integration action." }, 400);

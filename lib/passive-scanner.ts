@@ -40,7 +40,7 @@ function isPrivateIp(ip: string) {
   return true;
 }
 
-async function publicAddresses(hostname: string) {
+export async function publicAddresses(hostname: string) {
   const host = hostname.toLowerCase();
   if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) throw new Error("Local/private hosts are not allowed.");
   if (net.isIP(host) && isPrivateIp(host)) throw new Error("Private IP addresses are not allowed.");
@@ -60,7 +60,7 @@ function normalizeInput(value: unknown) {
   return url;
 }
 
-async function fetchSafely(start: URL, method: "GET" | "HEAD" = "GET") {
+export async function fetchSafely(start: URL, method: "GET" | "HEAD" = "GET") {
   let current = start;
   const chain: string[] = [];
   const started = Date.now();

@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { isValidCidr } from "@/lib/security-engine/request-analysis";
 
-const resources = new Set(["dashboard","websites","visitors","threats","firewall","analytics","reports","alerts","billing","admin","support"]);
+const resources = new Set(["dashboard","websites","visitors","threats","firewall","analytics","reports","alerts","billing","admin","support","scans","alert-channels","uptime"]);
+const LEGACY_WEBSITE_COLUMNS = "id,domain,status,verified_at,ssl_status,integration_status,created_at,updated_at,last_event_at";
+const LEGACY_ALERT_COLUMNS = "id,website_id,type,severity,title,message,acknowledged_at,created_at";
+// Until migration 0006 is applied, fall back to the older column set instead of failing the page.
+function missingColumn(error: unknown) { return (error as { code?: string })?.code === "42703"; }
+const WEBSITE_COLUMNS = "id,domain,status,verified_at,ssl_status,integration_status,created_at,updated_at,last_event_at,monitoring_enabled,monitoring_interval_minutes,security_score,security_grade,overall_risk,last_scan_at,next_scan_at,uptime_status,last_uptime_check_at,last_response_ms,last_status_code,ssl_expires_at,ssl_issuer,last_ingest_at,ingest_secret_hint";
 
 function json(data: unknown, init = 200, meta: Record<string, unknown> = {}) {
   return NextResponse.json({
@@ -58,7 +64,7 @@ export async function GET(_: NextRequest, context: { params: Promise<{ resource:
         countRows(client, "alerts", orgId, q => q.is("acknowledged_at", null)),
         client.from("threat_events").select("id,type,severity,source_ip,target_url,risk_score,status,action_taken,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(12),
         client.from("alerts").select("id,type,severity,title,message,acknowledged_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(8),
-        client.from("websites").select("id,domain,status,verified_at,ssl_status,integration_status,last_event_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: true }).limit(20),
+        client.from("websites").select(WEBSITE_COLUMNS).eq("organization_id", orgId).order("created_at", { ascending: true }).limit(20).then(async r => missingColumn(r.error) ? await client.from("websites").select(LEGACY_WEBSITE_COLUMNS).eq("organization_id", orgId).order("created_at", { ascending: true }).limit(20) : r),
         client.from("visitors").select("id,website_id,ip_address,country,city,device,browser,operating_system,referrer,first_seen_at,last_seen_at").eq("organization_id", orgId).order("last_seen_at", { ascending: false }).limit(1000),
         client.from("visitor_sessions").select("id,website_id,visitor_id,requested_url,status,risk_score,occurred_at").eq("organization_id", orgId).order("occurred_at", { ascending: false }).limit(5000)
       ]);
@@ -74,9 +80,36 @@ export async function GET(_: NextRequest, context: { params: Promise<{ resource:
     }
 
     if (key === "websites") {
-      const { data, error } = await client.from("websites").select("id,domain,status,verified_at,ssl_status,integration_status,created_at,updated_at").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const websitesQuery = (columns: string) => client.from("websites").select(columns).eq("organization_id", orgId).order("created_at", { ascending: false });
+      let result: { data: unknown; error: unknown } = await websitesQuery(WEBSITE_COLUMNS);
+      if (result.error && missingColumn(result.error)) result = await websitesQuery(LEGACY_WEBSITE_COLUMNS);
+      if (result.error) throw result.error;
+      const data = result.data as unknown[] | null;
+      return json(data || []);
+    }
+
+    if (key === "scans") {
+      const websiteId = _.nextUrl.searchParams.get("websiteId");
+      let query = client.from("security_scan_runs").select("id,website_id,status,security_score,security_grade,overall_risk,finding_counts,findings,started_at,completed_at,created_at,websites(domain)").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(websiteId ? 10 : 30);
+      if (websiteId) query = query.eq("website_id", websiteId);
+      const { data, error } = await query;
       if (error) throw error;
       return json(data || []);
+    }
+
+    if (key === "uptime") {
+      const websiteId = _.nextUrl.searchParams.get("websiteId");
+      let query = client.from("uptime_checks").select("id,website_id,ok,status_code,response_ms,ssl_days_left,error,checked_at").eq("organization_id", orgId).order("checked_at", { ascending: false }).limit(200);
+      if (websiteId) query = query.eq("website_id", websiteId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return json(data || []);
+    }
+
+    if (key === "alert-channels") {
+      const { data, error } = await client.from("alert_channels").select("enabled,email_recipients,webhook_url,min_severity,updated_at").eq("organization_id", orgId).maybeSingle();
+      if (error) throw error;
+      return json(data || { enabled: true, email_recipients: [], webhook_url: null, min_severity: "HIGH", defaultOwners: true });
     }
 
     if (key === "visitors") {
@@ -94,7 +127,7 @@ export async function GET(_: NextRequest, context: { params: Promise<{ resource:
     if (key === "firewall") {
       const [rules, ipRules, countryRules] = await Promise.all([
         client.from("firewall_rules").select("id,website_id,name,priority,enabled,conditions,action,provider_rule_id,created_at,updated_at").eq("organization_id", orgId).order("priority"),
-        client.from("ip_rules").select("id,website_id,ip_cidr,action,note,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }),
+        client.from("ip_rules").select("id,website_id,ip_cidr,action,note,expires_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }),
         client.from("country_rules").select("id,website_id,country_code,action,created_at").eq("organization_id", orgId).order("created_at", { ascending: false })
       ]);
       if (rules.error) throw rules.error;
@@ -114,8 +147,11 @@ export async function GET(_: NextRequest, context: { params: Promise<{ resource:
     }
 
     if (key === "alerts") {
-      const { data, error } = await client.from("alerts").select("id,website_id,type,severity,title,message,acknowledged_at,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
-      if (error) throw error;
+      const alertsQuery = (columns: string) => client.from("alerts").select(columns).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
+      let result: { data: unknown; error: unknown } = await alertsQuery("id,website_id,connection_id,type,severity,title,message,source,occurrences,last_seen_at,acknowledged_at,created_at,metadata");
+      if (result.error && missingColumn(result.error)) result = await alertsQuery(LEGACY_ALERT_COLUMNS);
+      if (result.error) throw result.error;
+      const data = result.data as unknown[] | null;
       return json(data || []);
     }
 
@@ -181,6 +217,15 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
   const orgId = user.organizationId;
 
   try {
+    if (key === "websites" && body.action === "monitoring") {
+      if (!["OWNER","ADMIN","SECURITY_ANALYST"].includes(user.role)) return json({ code: "FORBIDDEN", message: "Security role required." }, 403);
+      const interval = Math.max(15, Math.min(10080, Number(body.intervalMinutes || 1440)));
+      const { data, error } = await client.from("websites").update({ monitoring_enabled: body.enabled !== false, monitoring_interval_minutes: interval, updated_at: new Date().toISOString() }).eq("organization_id", orgId).eq("id", String(body.id || "")).select("id,monitoring_enabled,monitoring_interval_minutes").maybeSingle();
+      if (error) throw error;
+      if (!data) return json({ code: "NOT_FOUND", message: "Website not found." }, 404);
+      return json(data);
+    }
+
     if (key === "websites") {
       if (!body.domain || typeof body.domain !== "string") return json({ code: "INVALID_DOMAIN", message: "domain is required." }, 400);
       const domain = normalizeDomain(body.domain);
@@ -193,6 +238,29 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
       return json(data, 201, { reused: false });
     }
 
+    if (key === "firewall" && body.kind === "ip") {
+      if (!["OWNER","ADMIN","SECURITY_ANALYST"].includes(user.role)) return json({ code: "FORBIDDEN", message: "Security role required." }, 403);
+      const cidr = String(body.ip || "").trim();
+      if (!isValidCidr(cidr)) return json({ code: "INVALID_IP", message: "Enter a valid IP address or CIDR range, e.g. 203.0.113.7 or 203.0.113.0/24." }, 400);
+      if (!["ALLOW","BLOCK","CHALLENGE","RATE_LIMIT"].includes(body.action)) return json({ code: "INVALID_ACTION", message: "A valid action is required." }, 400);
+      const hours = Number(body.expiresInHours || 0);
+      const { data, error } = await client.from("ip_rules").insert({ organization_id: orgId, website_id: body.websiteId || null, ip_cidr: cidr, action: body.action, note: body.note ? String(body.note).slice(0, 300) : null, created_by: user.id, expires_at: hours > 0 ? new Date(Date.now() + Math.min(hours, 8760) * 3600000).toISOString() : null }).select("*").single();
+      if (error) throw error;
+      return json(data, 201, { enforcement: "server_ingest" });
+    }
+
+    if (key === "alert-channels") {
+      if (!["OWNER","ADMIN"].includes(user.role)) return json({ code: "FORBIDDEN", message: "Owner or admin role required." }, 403);
+      const emails = (Array.isArray(body.emails) ? body.emails : String(body.emails || "").split(/[\s,;]+/)).map((e: unknown) => String(e).trim().toLowerCase()).filter(Boolean);
+      if (emails.some((e: string) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) || emails.length > 10) return json({ code: "INVALID_EMAILS", message: "Enter up to 10 valid email addresses." }, 400);
+      const webhook = String(body.webhookUrl || "").trim();
+      if (webhook && !/^https:\/\/[^\s]+$/i.test(webhook)) return json({ code: "INVALID_WEBHOOK", message: "Webhook URL must start with https://" }, 400);
+      if (!["LOW","MEDIUM","HIGH","CRITICAL"].includes(body.minSeverity || "HIGH")) return json({ code: "INVALID_SEVERITY", message: "Invalid minimum severity." }, 400);
+      const { data, error } = await client.from("alert_channels").upsert({ organization_id: orgId, enabled: body.enabled !== false, email_recipients: emails, webhook_url: webhook || null, min_severity: body.minSeverity || "HIGH", updated_at: new Date().toISOString() }).select("enabled,email_recipients,webhook_url,min_severity,updated_at").single();
+      if (error) throw error;
+      return json(data);
+    }
+
     if (key === "firewall") {
       if (!["OWNER","ADMIN","SECURITY_ANALYST"].includes(user.role)) return json({ code: "FORBIDDEN", message: "Security role required." }, 403);
       if (!body.name || !["ALLOW","BLOCK","CHALLENGE","RATE_LIMIT"].includes(body.action)) return json({ code: "INVALID_RULE", message: "name and a valid action are required." }, 400);
@@ -202,8 +270,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
     }
 
     if (key === "alerts" && body.id) {
-      const { data, error } = await client.from("alerts").update({ acknowledged_at: new Date().toISOString() }).eq("organization_id", orgId).eq("id", body.id).select("*").single();
+      if (!["OWNER","ADMIN","SECURITY_ANALYST"].includes(user.role)) return json({ code: "FORBIDDEN", message: "Security role required." }, 403);
+      const { data, error } = await client.from("alerts").update({ acknowledged_at: new Date().toISOString(), acknowledged_by: user.id }).eq("organization_id", orgId).eq("id", body.id).select("*").maybeSingle();
       if (error) throw error;
+      if (!data) return json({ code: "NOT_FOUND", message: "Alert not found or not permitted." }, 404);
       return json(data);
     }
 
@@ -230,7 +300,17 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
 
   const { resource } = await context.params;
   const key = resource[0] || "";
-  if (key !== "websites") return json({ code: "DELETE_NOT_SUPPORTED", message: "Delete is only available for websites." }, 405);
+  if (key === "firewall") {
+    if (!["OWNER","ADMIN","SECURITY_ANALYST"].includes(user.role)) return json({ code: "FORBIDDEN", message: "Security role required." }, 403);
+    const id = request.nextUrl.searchParams.get("id") || "";
+    const table = request.nextUrl.searchParams.get("kind") === "ip" ? "ip_rules" : "firewall_rules";
+    const client = await createClient();
+    const { data, error } = await client.from(table).delete().eq("organization_id", user.organizationId).eq("id", id).select("id").maybeSingle();
+    if (error) return json({ code: "DATABASE_ERROR", message: error.message }, 500);
+    if (!data) return json({ code: "NOT_FOUND", message: "Rule not found." }, 404);
+    return json({ id, removed: true });
+  }
+  if (key !== "websites") return json({ code: "DELETE_NOT_SUPPORTED", message: "Delete is only available for websites and firewall rules." }, 405);
   if (!["OWNER","ADMIN"].includes(user.role)) return json({ code: "FORBIDDEN", message: "Owner or admin role required." }, 403);
 
   const id = request.nextUrl.searchParams.get("id") || "";
