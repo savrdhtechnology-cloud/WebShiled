@@ -1,16 +1,19 @@
 name: WebShield monitoring
 
-# Vercel Hobby only allows a daily cron. This workflow calls the same
-# monitoring endpoint every 15 minutes so uptime, SSL, Data Guard and
-# database checks run continuously.
-# Required repository secret: WEBSHIELD_CRON_SECRET (same value as the
-# CRON_SECRET environment variable in Vercel).
-# Optional repository variable: WEBSHIELD_MONITOR_URL.
+# Vercel Hobby only allows a daily cron, so this workflow runs the WebShield
+# monitoring cycle (uptime, SSL, scans, Data Guard, database audits) every
+# 15 minutes. It authenticates with a GitHub-signed OIDC token, so no secret
+# has to be stored in GitHub. Optional repository variable:
+# WEBSHIELD_MONITOR_URL (defaults to the production endpoint).
 
 on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
 
 concurrency:
   group: webshield-monitor
@@ -23,17 +26,20 @@ jobs:
     steps:
       - name: Run monitoring cycle
         env:
-          CRON_SECRET: ${{ secrets.WEBSHIELD_CRON_SECRET }}
           MONITOR_URL: ${{ vars.WEBSHIELD_MONITOR_URL || 'https://savrdhtechnologies.com/webshield/api/cron/monitor' }}
         run: |
-          if [ -z "$CRON_SECRET" ]; then
-            echo "::warning::WEBSHIELD_CRON_SECRET is not set; skipping."
-            exit 0
+          token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=webshield-monitor" | jq -r .value)
+          if [ -z "$token" ] || [ "$token" = "null" ]; then
+            echo "::error::Could not obtain a GitHub OIDC token"; exit 1
           fi
           status=$(curl -sS -o response.json -w "%{http_code}" --max-time 90 \
-            -H "Authorization: Bearer $CRON_SECRET" "$MONITOR_URL")
+            -H "Authorization: Bearer $token" "$MONITOR_URL")
           cat response.json; echo
+          if [ "$status" = "503" ]; then
+            echo "::warning::WebShield monitoring is not configured on the server yet (WEBSHIELD_SUPABASE_SECRET_KEY missing)."
+            exit 0
+          fi
           if [ "$status" != "200" ]; then
-            echo "::error::Monitoring endpoint returned HTTP $status"
-            exit 1
+            echo "::error::Monitoring endpoint returned HTTP $status"; exit 1
           fi

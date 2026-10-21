@@ -8,7 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "node scripts/lint.mjs",
-    "test": "node scripts/test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-telemetry.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-request-analysis.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-data-guard.mjs && node scripts/test-migrations.mjs"
+    "test": "node scripts/test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-telemetry.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-request-analysis.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-data-guard.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-github-oidc.mjs && node scripts/test-migrations.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
