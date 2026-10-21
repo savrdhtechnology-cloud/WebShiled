@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { decryptSecret, encryptSecret, secretHint } from "@/lib/database-security/crypto";
-import { remediationSql, runSupabaseDatabaseAudit } from "@/lib/database-security/audit";
-import { runWriteQuery, validateProjectRef, verifySupabaseDatabaseAccess } from "@/lib/database-security/supabase-management";
+import { remediationSql } from "@/lib/database-security/audit";
+import { runReadOnlyQuery, runWriteQuery, validateProjectRef, verifySupabaseDatabaseAccess } from "@/lib/database-security/supabase-management";
+import { LIST_TABLES_SQL, normalizeDbUsers, normalizeTableList, suggestGuardTables } from "@/lib/database-security/guard";
+import { installDataGuard, loadConnection, pollDataGuard, runDatabaseScan, uninstallDataGuard } from "@/lib/database-security/service";
 
 function reply(data: unknown, status = 200) {
   return NextResponse.json({ ok: status < 400, data: status < 400 ? data : null, error: status >= 400 ? data : null }, { status });
@@ -11,7 +13,7 @@ function reply(data: unknown, status = 200) {
 
 function setupRequired(error: unknown) {
   const value = error as { code?: string; message?: string };
-  return value?.code === "42P01" || /database_(connections|scans|findings)|remediation_jobs|relation .* does not exist/i.test(value?.message || "");
+  return value?.code === "42P01" || value?.code === "42703" || /database_(connections|scans|findings)|remediation_jobs|relation .* does not exist|column .* does not exist/i.test(value?.message || "");
 }
 
 async function context() {
@@ -29,18 +31,6 @@ function canManage(role: string) {
   return ["OWNER","ADMIN"].includes(role);
 }
 
-async function connectionFor(client: Awaited<ReturnType<typeof createClient>>, orgId: string, id: string) {
-  const { data, error } = await client
-    .from("database_connections")
-    .select("id,organization_id,website_id,provider,name,project_ref,encrypted_secret,secret_hint,access_mode,status,last_checked_at,last_error,created_at,updated_at")
-    .eq("organization_id", orgId)
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("Database connection not found.");
-  return data;
-}
-
 export async function GET(request: NextRequest) {
   const ctx = await context();
   if ("error" in ctx) return ctx.error;
@@ -50,7 +40,7 @@ export async function GET(request: NextRequest) {
   try {
     const [connections, scans, findings, jobs] = await Promise.all([
       client.from("database_connections")
-        .select("id,website_id,provider,name,project_ref,secret_hint,access_mode,status,last_checked_at,last_error,created_at,updated_at")
+        .select("id,website_id,provider,name,project_ref,secret_hint,access_mode,status,last_checked_at,last_error,created_at,updated_at,guard_enabled,guard_installed_at,guard_tables,guard_anon_insert_tables,guard_trusted_db_users,guard_last_poll_at,guard_last_error,audit_interval_minutes,next_audit_at")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false }),
       client.from("database_scans")
@@ -72,6 +62,16 @@ export async function GET(request: NextRequest) {
     ]);
 
     for (const result of [connections, scans, findings, jobs]) if (result.error) throw result.error;
+    const firstId = requested || connections.data?.[0]?.id || null;
+    let activity: unknown[] = [];
+    if (firstId) {
+      const { data: events, error: activityError } = await client.from("database_activity_events")
+        .select("id,connection_id,occurred_at,table_schema,table_name,operation,db_user,jwt_role,user_id,client_ip,row_pk,changed_columns,suspicious,severity,reasons,reviewed_at")
+        .eq("organization_id", orgId).eq("connection_id", firstId)
+        .order("occurred_at", { ascending: false }).limit(200);
+      // Older deployments without migration 0006 simply show no activity.
+      if (!activityError) activity = events || [];
+    }
 
     const connectionRows = connections.data || [];
     const latestByConnection = new Map<string, unknown>();
@@ -83,15 +83,17 @@ export async function GET(request: NextRequest) {
       connections: connectionRows.map(row => ({ ...row, latestScan: latestByConnection.get(row.id) || null })),
       selectedConnectionId: selectedId,
       findings: (findings.data || []).filter(row => !selectedId || row.connection_id === selectedId),
-      remediationJobs: (jobs.data || []).filter(row => !selectedId || row.connection_id === selectedId)
+      remediationJobs: (jobs.data || []).filter(row => !selectedId || row.connection_id === selectedId),
+      activity
     });
   } catch (error) {
     if (setupRequired(error)) return reply({
       setupRequired: true,
-      message: "Database Security schema has not been activated for this WebShield deployment yet.",
+      message: "Database Security schema is not fully activated. Apply supabase/migrations/0003_database_security.sql and 0006_live_monitoring_and_data_guard.sql in the WebShield Supabase SQL editor.",
       connections: [],
       findings: [],
-      remediationJobs: []
+      remediationJobs: [],
+      activity: []
     });
     const message = error instanceof Error ? error.message : "Database Security could not be loaded.";
     return reply({ code: "DATABASE_SECURITY_ERROR", message }, 500);
@@ -144,69 +146,65 @@ export async function POST(request: NextRequest) {
 
     if (action === "scan") {
       if (!canScan(user.role)) return reply({ code: "FORBIDDEN", message: "Security analyst, admin or owner role required." }, 403);
-      const id = String(body.connectionId || "");
-      const connection = await connectionFor(client, orgId, id);
+      const connection = await loadConnection(client, orgId, String(body.connectionId || ""));
       if (connection.status === "DISABLED") return reply({ code: "CONNECTION_DISABLED", message: "This database connection is disabled." }, 409);
-      const token = decryptSecret(connection.encrypted_secret);
+      const result = await runDatabaseScan(client, orgId, connection);
+      return reply(result);
+    }
 
-      const { data: scan, error: scanError } = await client.from("database_scans").insert({
-        organization_id: orgId,
-        connection_id: id,
-        status: "RUNNING",
-        started_at: new Date().toISOString()
-      }).select("id").single();
-      if (scanError) throw scanError;
+    if (action === "list_tables") {
+      if (!canScan(user.role)) return reply({ code: "FORBIDDEN", message: "Security role required." }, 403);
+      const connection = await loadConnection(client, orgId, String(body.connectionId || ""));
+      const rows = await runReadOnlyQuery(connection.project_ref, decryptSecret(connection.encrypted_secret), LIST_TABLES_SQL);
+      return reply({
+        tables: rows.map(r => ({ table: `${String(r.schema_name)}.${String(r.table_name)}`, rlsEnabled: r.rls_enabled === true || r.rls_enabled === "t", approxRows: Number(r.approx_rows || 0) })),
+        suggested: suggestGuardTables(rows)
+      });
+    }
 
-      try {
-        const audit = await runSupabaseDatabaseAudit(connection.project_ref, token);
-        await client.from("database_findings")
-          .update({ status: "SUPERSEDED", updated_at: new Date().toISOString() })
-          .eq("organization_id", orgId).eq("connection_id", id).eq("status", "OPEN");
+    if (action === "install_guard") {
+      if (!canManage(user.role)) return reply({ code: "FORBIDDEN", message: "Owner or admin approval is required to install Data Guard." }, 403);
+      const connection = await loadConnection(client, orgId, String(body.connectionId || ""));
+      const tables = normalizeTableList(body.tables);
+      const anonInsert = normalizeTableList(body.anonInsertTables || []);
+      const trusted = normalizeDbUsers(body.trustedDbUsers || []);
+      const data = await installDataGuard(client, orgId, connection, tables, anonInsert, trusted);
+      return reply(data);
+    }
 
-        if (audit.findings.length) {
-          const { error: findingError } = await client.from("database_findings").insert(audit.findings.map(f => ({
-            organization_id: orgId,
-            connection_id: id,
-            scan_id: scan.id,
-            finding_key: f.key,
-            category: f.category,
-            severity: f.severity,
-            title: f.title,
-            description: f.description,
-            impact: f.impact,
-            evidence: f.evidence,
-            recommended_fix: f.recommendedFix,
-            fix_type: f.fixType,
-            status: "OPEN"
-          })));
-          if (findingError) throw findingError;
-        }
+    if (action === "update_guard_rules") {
+      if (!canManage(user.role)) return reply({ code: "FORBIDDEN", message: "Owner or admin role required." }, 403);
+      const id = String(body.connectionId || "");
+      await loadConnection(client, orgId, id);
+      const { data, error } = await client.from("database_connections").update({
+        guard_anon_insert_tables: normalizeTableList(body.anonInsertTables || []),
+        guard_trusted_db_users: normalizeDbUsers(body.trustedDbUsers || []),
+        ...(body.auditIntervalMinutes ? { audit_interval_minutes: Math.max(60, Math.min(10080, Number(body.auditIntervalMinutes) || 1440)) } : {}),
+        updated_at: new Date().toISOString()
+      }).eq("organization_id", orgId).eq("id", id).select("id,guard_anon_insert_tables,guard_trusted_db_users,audit_interval_minutes").single();
+      if (error) throw error;
+      return reply(data);
+    }
 
-        const completedAt = new Date().toISOString();
-        const { error: completeError } = await client.from("database_scans").update({
-          status: "COMPLETED",
-          security_score: audit.summary.securityScore,
-          overall_risk: audit.summary.overallRisk,
-          finding_counts: audit.summary.findingCounts,
-          summary: audit.summary,
-          completed_at: completedAt
-        }).eq("organization_id", orgId).eq("id", scan.id);
-        if (completeError) throw completeError;
+    if (action === "uninstall_guard") {
+      if (!canManage(user.role)) return reply({ code: "FORBIDDEN", message: "Owner or admin role required." }, 403);
+      const connection = await loadConnection(client, orgId, String(body.connectionId || ""));
+      return reply(await uninstallDataGuard(client, orgId, connection));
+    }
 
-        await client.from("database_connections").update({
-          status: "CONNECTED",
-          last_checked_at: completedAt,
-          last_error: null,
-          updated_at: completedAt
-        }).eq("organization_id", orgId).eq("id", id);
+    if (action === "poll_guard") {
+      if (!canScan(user.role)) return reply({ code: "FORBIDDEN", message: "Security role required." }, 403);
+      const connection = await loadConnection(client, orgId, String(body.connectionId || ""));
+      if (!connection.guard_enabled) return reply({ code: "GUARD_NOT_INSTALLED", message: "Install Data Guard on this database first." }, 409);
+      return reply(await pollDataGuard(client, orgId, connection));
+    }
 
-        return reply({ scanId: scan.id, ...audit });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Database scan failed.";
-        await client.from("database_scans").update({ status: "FAILED", error_message: message, completed_at: new Date().toISOString() }).eq("organization_id", orgId).eq("id", scan.id);
-        await client.from("database_connections").update({ status: "ERROR", last_error: message, last_checked_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("organization_id", orgId).eq("id", id);
-        throw error;
-      }
+    if (action === "review_activity") {
+      if (!canScan(user.role)) return reply({ code: "FORBIDDEN", message: "Security role required." }, 403);
+      const { data, error } = await client.from("database_activity_events").update({ reviewed_at: new Date().toISOString() })
+        .eq("organization_id", orgId).eq("id", String(body.eventId || "")).select("id,reviewed_at").single();
+      if (error) throw error;
+      return reply(data);
     }
 
     if (action === "preview_fix") {
@@ -238,7 +236,7 @@ export async function POST(request: NextRequest) {
       if (!finding) return reply({ code: "NOT_FOUND", message: "Finding not found." }, 404);
       if (finding.status !== "OPEN") return reply({ code: "NOT_OPEN", message: "Only open findings can be remediated." }, 409);
 
-      const connection = await connectionFor(client, orgId, finding.connection_id);
+      const connection = await loadConnection(client, orgId, finding.connection_id);
       if (connection.access_mode !== "REMEDIATION") return reply({ code: "READ_ONLY_CONNECTION", message: "Reconnect this database with Remediation access before applying changes." }, 409);
       const sql = remediationSql(finding);
       const { data: job, error: jobError } = await client.from("remediation_jobs").insert({
