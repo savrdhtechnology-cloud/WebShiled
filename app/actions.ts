@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { clearSession, createDemoSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { verifyTrialToken } from "@/lib/trial";
 
 export type AuthState = { error?: string; message?: string };
 
@@ -46,7 +47,10 @@ export async function registerAction(formData: FormData) {
   const email = text(formData, "email").toLowerCase();
   const password = text(formData, "password");
   const name = text(formData, "name");
-  if (!name || !email || password.length < 10) redirect("/register?error=invalid");
+  // Registration only works with a trial link issued by the Savrdh team (checked again here, not just on the page).
+  const trial = text(formData, "trial");
+  if (!(await verifyTrialToken(trial))) redirect("/register");
+  if (!name || !email || password.length < 10) redirect("/register?error=invalid&trial=" + encodeURIComponent(trial));
 
   const supabase = await createClient();
   const base = (process.env.NEXT_PUBLIC_APP_URL || PRODUCTION_APP_URL).replace(/\/$/, "");
@@ -66,15 +70,15 @@ export async function registerAction(formData: FormData) {
       message: error.message
     });
     const code = (error as { code?: string }).code || "signup";
-    if (code === "over_email_send_rate_limit") redirect("/register?error=email-rate-limit");
-    if (code === "email_address_invalid") redirect("/register?error=email-invalid");
-    if (code === "weak_password") redirect("/register?error=weak-password");
-    if (code === "signup_disabled") redirect("/register?error=signup-disabled");
-    redirect("/register?error=signup-auth");
+    if (code === "over_email_send_rate_limit") redirect("/register?error=email-rate-limit&trial=" + encodeURIComponent(trial));
+    if (code === "email_address_invalid") redirect("/register?error=email-invalid&trial=" + encodeURIComponent(trial));
+    if (code === "weak_password") redirect("/register?error=weak-password&trial=" + encodeURIComponent(trial));
+    if (code === "signup_disabled") redirect("/register?error=signup-disabled&trial=" + encodeURIComponent(trial));
+    redirect("/register?error=signup-auth&trial=" + encodeURIComponent(trial));
   }
   if (!data.user) {
     console.error("[WebShield signup] No user returned without Auth error");
-    redirect("/register?error=signup-auth");
+    redirect("/register?error=signup-auth&trial=" + encodeURIComponent(trial));
   }
   redirect("/login?message=verify-email");
 }
