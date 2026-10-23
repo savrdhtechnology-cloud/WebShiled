@@ -80,8 +80,8 @@ export default async function HomePage() {
         <nav aria-label="Main">
           <a href="#features">Features</a>
           <a href="#products">Other products</a>
-          <a href="#demo">Book demo</a>
-          {isIn ? <Link className="lpBtn ghost" href="/app/dashboard">Open dashboard</Link> : <><Link className="lpBtn ghost" href="/login">Login</Link><Link className="lpBtn" href="/register">Start free test</Link></>}
+          <a href="#demo">Free trial</a>
+          {isIn ? <Link className="lpBtn ghost" href="/app/dashboard">Open dashboard</Link> : <><Link className="lpBtn ghost" href="/login">Login</Link><a className="lpBtn" href="#demo">Request free trial</a></>}
         </nav>
       </header>
 
@@ -91,8 +91,8 @@ export default async function HomePage() {
           <h1>Monitor. <em>Detect.</em> Protect.</h1>
           <p>WebShield scans any website for SSL, security headers, DNS, malware and vulnerabilities, alerts you the moment an issue appears, and shows on one dashboard which site has which problem.</p>
           <div className="lpActions">
-            <a className="lpBtn big" href="#demo">Book a demo</a>
-            {isIn ? <Link className="lpBtn ghost big" href="/app/dashboard">Open dashboard</Link> : <Link className="lpBtn ghost big" href="/register">Start free test</Link>}
+            <a className="lpBtn big" href="#demo">Request free trial</a>
+            {isIn ? <Link className="lpBtn ghost big" href="/app/dashboard">Open dashboard</Link> : <a className="lpBtn ghost big" href="#demo">Request free trial</a>}
           </div>
           <small className="lpNote">{isIn ? "You are signed in." : <>Already have an account? <Link href="/login">Login</Link></>}</small>
         </div>
@@ -122,9 +122,9 @@ export default async function HomePage() {
       <section className="lpSection lpSteps">
         <div className="lpHead"><span>HOW IT WORKS</span><h2>Protected in three steps</h2></div>
         <ol>
-          <li><b>1</b><h3>Create your account</h3><p>Sign up for a free test workspace in a minute.</p></li>
-          <li><b>2</b><h3>Add your website</h3><p>Connect it with one line of code and run your first scan.</p></li>
-          <li><b>3</b><h3>Fix and monitor</h3><p>Follow the fix steps and let WebShield watch the rest.</p></li>
+          <li><b>1</b><h3>Request your trial</h3><p>Tell us about your website. The Savrdh team reviews your request.</p></li>
+          <li><b>2</b><h3>Get your activation link</h3><p>We email you a personal link that activates your trial workspace.</p></li>
+          <li><b>3</b><h3>Add your website and scan</h3><p>Connect it with one line of code, then follow the fix steps.</p></li>
         </ol>
       </section>
 
@@ -149,12 +149,12 @@ export default async function HomePage() {
 
       <section id="demo" className="lpSection lpDemo">
         <div className="lpDemoCopy">
-          <span>BOOK A DEMO</span>
-          <h2>See WebShield on your own website</h2>
+          <span>FREE TRIAL</span>
+          <h2>Try WebShield on your own website</h2>
           <ul>
             <li><Icon name="check" size={16} />A guided walkthrough from the Savrdh product team</li>
             <li><Icon name="check" size={16} />Scan a real website and see the fix steps</li>
-            <li><Icon name="check" size={16} />Prefer to try it yourself? <Link href="/register">Start a free test</Link></li>
+            <li><Icon name="check" size={16} />Your trial is activated by our team and sent to you by email</li>
           </ul>
         </div>
         <LandingDemoForm />

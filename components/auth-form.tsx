@@ -5,10 +5,10 @@ import { forgotPasswordAction, loginAction, registerAction, resetPasswordAction 
 
 type Mode = "login" | "register" | "forgot" | "reset";
 
-export function AuthForm({ mode, error, message, next }: { mode: Mode; error?: string; message?: string; next?: string }) {
+export function AuthForm({ mode, error, message, next, trial }: { mode: Mode; error?: string; message?: string; next?: string; trial?: string }) {
   const copy = {
     login: ["Welcome back", "Sign in to your WebShield security workspace."],
-    register: ["Create your workspace", "Start with the WebShield V1 security operations foundation."],
+    register: ["Activate your trial", "Your trial link is valid. Create your account to start."],
     forgot: ["Reset access", "Request a secure password recovery email."],
     reset: ["Choose a new password", "Use at least 10 characters for your new password."]
   }[mode];
@@ -43,9 +43,10 @@ export function AuthForm({ mode, error, message, next }: { mode: Mode; error?: s
             {(mode === "login" || mode === "register" || mode === "forgot") && <label>Email address<input name="email" type="email" autoComplete="email" required placeholder="you@company.com" /></label>}
             {(mode === "login" || mode === "register" || mode === "reset") && <label>Password<input name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "login" ? 8 : 10} required placeholder="••••••••••" /></label>}
             {mode === "login" && <input type="hidden" name="next" value={next || "/app/dashboard"} />}
+            {mode === "register" && <input type="hidden" name="trial" value={trial || ""} />}
             <button className="btn full" type="submit">{mode === "login" ? "Sign in" : mode === "register" ? "Create account" : mode === "forgot" ? "Send recovery email" : "Update password"}<Icon name="chevron"/></button>
           </form>
-          {mode === "login" && <><div className="authMeta"><Link href="/forgot-password">Forgot password?</Link><span>New to WebShield? <Link href="/register">Create account</Link></span></div><div className="demoLogin"><b>Demo mode</b><p>Use <code>admin@webshield.demo</code> or <code>client@webshield.demo</code> with the demo password for preview access only.</p></div></>}
+          {mode === "login" && <><div className="authMeta"><Link href="/forgot-password">Forgot password?</Link><span>New to WebShield? <Link href="/#demo">Request a free trial</Link></span></div><div className="demoLogin"><b>Demo mode</b><p>Use <code>admin@webshield.demo</code> or <code>client@webshield.demo</code> with the demo password for preview access only.</p></div></>}
           {mode === "register" && <div className="authMeta center">Already have an account? <Link href="/login">Sign in</Link></div>}
           {(mode === "forgot" || mode === "reset") && <div className="authMeta center"><Link href="/login">Back to sign in</Link></div>}
         </div>

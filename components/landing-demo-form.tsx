@@ -28,7 +28,7 @@ export function LandingDemoForm() {
           company: form.company,
           email: form.email,
           phone: form.phone,
-          notes: form.website ? `Website to protect: ${form.website}` : "",
+          notes: "FREE TRIAL REQUEST (staff: create a WebShield trial link for this lead). " + (form.website ? `Website to protect: ${form.website}` : ""),
           emailConsent: form.emailConsent,
           sourcePage: window.location.href
         })
@@ -47,8 +47,8 @@ export function LandingDemoForm() {
     return (
       <div className="lpDemoDone" role="status">
         <span>REQUEST RECEIVED</span>
-        <h3>Thank you, we will contact you shortly.</h3>
-        <p>Our team will arrange your WebShield walkthrough. Request reference: <b>{ref}</b></p>
+        <h3>Thank you, your trial request is in.</h3>
+        <p>Our team will review it and email you a personal activation link. Request reference: <b>{ref}</b></p>
       </div>
     );
   }
@@ -56,8 +56,8 @@ export function LandingDemoForm() {
   const set = (key: "name" | "company" | "email" | "phone" | "website") => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value });
   return (
     <form className="lpDemoForm" onSubmit={submit}>
-      <h3>Book a WebShield demo</h3>
-      <p>Tell us a little about you. We will contact you and show WebShield on a live walkthrough.</p>
+      <h3>Request your free trial</h3>
+      <p>Tell us a little about you. We will review your request and email you an activation link.</p>
       <div className="lpFields">
         <label>Full name<input required maxLength={120} autoComplete="name" value={form.name} onChange={set("name")} /></label>
         <label>Company<input maxLength={160} autoComplete="organization" value={form.company} onChange={set("company")} /></label>
@@ -65,9 +65,9 @@ export function LandingDemoForm() {
         <label>Mobile number<input required type="tel" maxLength={30} autoComplete="tel" value={form.phone} onChange={set("phone")} /></label>
         <label className="wide">Website to protect (optional)<input maxLength={200} placeholder="https://your-website.com" value={form.website} onChange={set("website")} /></label>
       </div>
-      <label className="lpConsent"><input required type="checkbox" checked={form.emailConsent} onChange={(e) => setForm({ ...form, emailConsent: e.target.checked })} /><span>Please contact me about this WebShield demo request.</span></label>
+      <label className="lpConsent"><input required type="checkbox" checked={form.emailConsent} onChange={(e) => setForm({ ...form, emailConsent: e.target.checked })} /><span>Please contact me about this WebShield trial request.</span></label>
       {error && <p role="alert" className="lpError">{error}</p>}
-      <button type="submit" disabled={busy}>{busy ? "Sending…" : "Book my demo"}</button>
+      <button type="submit" disabled={busy}>{busy ? "Sending…" : "Request my trial"}</button>
     </form>
   );
 }
